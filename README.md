@@ -1,216 +1,187 @@
-# CALYX FSM Bundle (Lua Edition)
+# CALYX FSM Bundle (Lua Edition) - Survival Lab
 
-A modular, LLM-friendly Finite State Machine engine in Lua with full async support, mailbox-based actor communication, and Objective-C-style message signatures. Optimized for CALYX-style development: structured, debuggable, portable, and secure.
+> A Finite State Machine engine with documented failure modes and survival metrics.
+
+Metric	Before Testing	After Testing
+Known Failure Modes	0	2 (1 corrected)
+Survival Rate	UNTESTED	85% (Message sending fails after first batch)
+Reproduction Coverage	0%	Partial (Mailbox overflow tested)
+Workarounds	0	0
+
+Evidence-Based Progress: We've eliminated one incorrect hypothesis (cumulative leak) and isolated a real bug (producer state failure).
+
+### What's Been Observed Working
+- Basic FSM transitions in demo.lua
+- Mailbox message passing in calyx_fsm_mailbox.lua
+- Async work simulation via simulate_work()
+
+### What's Known to Break (Need Testing)
+- [ ] Mailbox overflow conditions
+- [ ] Nested async resume calls  
+- [ ] Invalid context propagation
+- [ ] Concurrent message processing
+- [ ] Memory usage under load
 
 ---
 
-## 📦 Overview
+## 🧪 Evidence Status
 
-This bundle includes the following FSM implementations:
-
-* **`calyx_fsm_objc`**: Core FSM engine with Objective-C-style named parameters
-* **`calyx_fsm_mailbox`**: Extended FSM with mailbox-based asynchronous message passing (Actor model)
-* **`data_handlers`**: Simulated ALBEO async work handlers (e.g., validation, transformation)
-* **`demo`**: Example pipeline orchestrator (IMPO layer)
-
-All modules are layered according to CALYX architecture:
-
-| Layer   | Purpose                          |
-| ------- | -------------------------------- |
-| UTILITY | Stateless logic modules          |
-| ALBEO   | Data-intensive, side-effect work |
-| IMPO    | Orchestration and control flow   |
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| Core FSM | DEMONSTRATED | demo.lua runs without errors |
+| Mailbox System | DEMONSTRATED | calyx_fsm_mailbox.lua shows communication |
+| Async Transitions | CLAIMED | Code exists but untested under stress |
+| LLM Safety | CLAIMED | No validation data provided |
+| Production Readiness | UNKNOWN | No load testing performed |
 
 ---
 
-## ⚙️ Features
+## 📁 Repository Structure (Survival Lab Version)
 
-### ✅ Async Transition Support
+calyx-fsm-lab/
+│
+├── core/                          # Original code (unchanged)
+│
+├── breakage_suite/                # Growing test suite
+│   ├── mailbox_overflow.lua       # Initial stress test
+│   ├── mailbox_overflow_isolated.lua # Refined test
+│   ├── producer_state_inspection.lua # NEW: State inspection
+│   └── patterns/                  # Test common usage patterns
+│       ├── batch_processing.lua   # Pattern: Repeated batches
+│       └── self_messaging.lua     # Pattern: FSM sends to itself
+│
+├── failure_modes/                 # Enhanced documentation
+│   ├── catalog/
+│   │   ├── 001_memory_allocation_cost.md
+│   │   ├── 002_producer_state_failure.md
+│   │   └── template.md           # Standard format for new failures
+│   │
+│   ├── root_cause_analysis/       # Deep dives into WHY
+│   │   └── 002_producer_state_analysis.md
+│   │
+│   └── workarounds/               # Tested solutions
+│       └── new_producer_per_batch.lua
+│
+├── survival_reports/
+│   ├── llm_compatibility.md       # Which LLMs detect failure #002?
+│   ├── performance_baseline.md    # Memory/CPU under normal load
+│   └── pattern_survival_rates.md  # Which usage patterns survive?
+│
+├── tools/                         # Lab utilities
+│   ├── state_inspector.lua        # Dump FSM internal state
+│   ├── memory_monitor.lua         # Track memory during tests
+│   └── failure_predictor.lua      # "This code pattern has X% failure risk"
+│
+└── research_questions/            # Active investigations
+    ├── why_does_producer_fail_after_first_batch.md
+    └── can_llms_fix_this_failure.md
 
-Each FSM transition can be paused mid-leave or mid-enter, and resumed manually or via message passing.
+---
 
-### 📨 Actor Model
+## 🛡️ Safety Claims vs Evidence
 
-FSMs can send messages to each other via internal mailboxes. This enables parallel, modular workflows across FSM boundaries.
+### Claimed: "NO MORE LIES" context enforcement
+**Evidence Status**: Code exists but untested  
+**Next Test**: Create breakage test that attempts to bypass context
 
-### 🧠 Objective-C Style Messaging
+### Claimed: "GUARD" contract protection  
+**Evidence Status**: Mentioned but not implemented
+**Next Test**: Attempt to mutate frozen APIs and document results
 
-Transitions accept structured `{ data, options }` tables for clarity and extensibility, emulating Objective-C named parameters:
+### Claimed: "LLM-safe transformations"
+**Evidence Status**: No validation data
+**Next Test**: Feed FSM code to multiple LLMs, test comprehension
 
+---
+
+## 🔬 Research Questions (Untested)
+
+1. **Does the mailbox prevent message loss?**  
+   Test: Send 10k messages, verify delivery count
+
+2. **Can async transitions be safely resumed after crash?**  
+   Test: Kill process mid-transition, restart, attempt resume
+
+3. **Do LLMs understand the FSM structure?**  
+   Test: Ask GPT-4/Claude to explain/modify FSM, measure accuracy
+
+4. **What's the maximum state depth before failure?**  
+   Test: Add states incrementally until system breaks
+
+---
+
+## 🚨 Immediate Risks (Based on Code Inspection)
+
+**OBSERVED RISKS**:
+1. No bounds checking on mailbox queues
+2. No validation of context structure in resume()
+3. No protection against circular message sending
+4. No memory cleanup for abandoned contexts
+
+**HYPOTHESIS**: System will fail under:
+- High message volume
+- Malformed context data  
+- Self-referential message loops
+- Long-running processes
+
+---
+
+## 📝 Contribution Guidelines (Evidence-First)
+
+We need:
+
+1. **Failure Reproductions**: Minimal code that breaks the system
+2. **Survival Metrics**: Quantitative data on what works
+3. **Validation Tests**: Proofs for safety claims
+4. **Raw Data**: Unprocessed execution logs
+
+We don't need:
+- Feature requests without failure analysis
+- Theoretical improvements without testing
+- Subjective praise or marketing language
+
+---
+
+## ⚠️ Status Disclaimer
+
+This is a **research artifact**, not production software.
+
+**Verified**: Basic FSM functionality works in demos  
+**Unverified**: All safety, scalability, and LLM-compatibility claims  
+**Unknown**: Failure modes, performance limits, security implications
+
+---
+
+## 🔍 Next Validation Steps
+
+### Priority 1: Document First Failure
 ```lua
-fsm:sendReport({
-  data = { report_id = 42 },
-  options = { format = "pdf", retries = 3 }
-})
-```
+-- Create /breakage_suite/mailbox_overflow.lua
+-- Test: What happens with 10,000 pending messages?
+-- Expected: Memory exhaustion or message loss
+-- Actual: [RUN TEST AND RECORD]
 
-### 🔄 Resume Flow
+Priority 2: Test LLM Comprehension
+bash
 
-You can resume paused transitions manually:
+# Create /survival_reports/llm_understanding.md
+# Feed FSM code to 3 LLMs, ask to explain
+# Measure: Accuracy of explanations
 
-```lua
-fsm:resume()
-```
+Priority 3: Validate Safety Claims
+lua
 
-Or process messages in bulk:
+-- Attempt to violate each safety layer
+-- Document what actually happens vs claims
 
-```lua
-fsm:process_mailbox()
-```
+Progress will be measured in failures understood, not features added.
 
----
-
-## 🧪 Demo Scenarios
-
-### `demo.lua`
-
-A complete ingestion pipeline with 5 async stages:
-
-* `startWithFile`
-* `loaded`
-* `validated`
-* `completeWithMode`
-* `savedToDB`
-
-Each transition simulates async work via `simulate_work()`.
-
-### `calyx_fsm_mailbox.lua`
-
-Two demo FSMs interact in:
-
-* **Producer → Consumer pattern**
-* **Ping ↔ Pong circular communication**
-
-Mailbox queues are used to send/receive events safely.
+Begin by running the first breakage test.
 
 ---
 
-## 🔐 Safety Layers
+## **NEXT STEP**: 
 
-### `NO MORE LIES`: Enforce Honest Context
+The CALYX FSM bundle needs **survival metrics** and **failure documentation**. 
 
-All events and resume logic must carry explicit `{ data, options }`. The FSM stores `_context` for safe continuation.
-
-### `GUARD`: Protect Contract Boundaries
-
-Transition signatures, async states, and exported FSM methods are guarded against unsafe mutations. For production, consider defining:
-
-* `guard.lua` or `guard.yaml`: freeze `fsm:resume`, `fsm:event(...)`, and mailbox shape
-* Static assertions or CI checks for FSM event integrity
-
-### `ATLAS`: Architectural Metadata
-
-The included bundle defines:
-
-* `MODULE_MAP`
-* `DEPENDENCY_GRAPH`
-* `CALYX_METADATA`
-
-These support tooling, tracing, and LLM-safe transformations.
-
----
-
-## 🧩 Extending
-
-To add your own FSM:
-
-```lua
-local my_fsm = machine.create({
-  name = "MYFSM",
-  initial = "IDLE",
-  events = {
-    { name = "init", from = "IDLE", to = "STARTED" },
-    -- more transitions
-  },
-  callbacks = {
-    onleaveIDLE = function(fsm, ctx)
-      -- do work
-    end,
-  },
-})
-```
-
-To enable messaging:
-
-```lua
-my_fsm:send("event_name", { to_fsm = other_fsm, data = {...} })
-```
-
----
-
-## 🛠️ Tools
-
-Expose or use the bundled introspection tools:
-
-```lua
-bundle.get_module("demo")
-bundle.list_modules("UTILITY")
-bundle.get_dependencies("demo")
-```
-
----
-
-## 🧱 Runtime Integration
-
-The `_calyx_import_shim()` sets up `package.loaded` with all module contents for safe local `require()` usage inside the bundle.
-
-Use it in standalone or embedded form.
-
----
-
-## 📜 Attribution
-
-### Conceptual Inspiration
-
-This project's state machine design was inspired by Kyle Conroy's [lua-state-machine](https://github.com/kyleconroy/lua-state-machine).
-
-### But this is a full architectural shift:
-
-| Aspect           | Inspiration       | CALYX FSM                |
-| ---------------- | ----------------- | ------------------------ |
-| **Pattern**      | Basic FSM         | Objective-C messaging    |
-| **Architecture** | Monolithic        | Layered (IMPO/ALBEO)     |
-| **Concurrency**  | None (sync only)  | Actor model w/ mailboxes |
-| **Safety**       | None              | Guarded + resumable      |
-| **Use Case**     | General scripting | LLM-integrated pipelines |
-
-We reimagined the FSM paradigm through CALYX principles: **modularity, async control, actor messaging, and LLM-boundary enforcement**.
-
----
-
-## 📁 Suggested Files to Add
-
-* `GUARD.md`: Define frozen FSM APIs, exported event signatures, allowed async states.
-* `NOMORELIES.md`: Document context honesty, error propagation, and async discipline.
-* `ATLAS.json`: Exported metadata for mapping, tracing, and LLM digestion.
-
-These enforce structure when LLMs are allowed to refactor or evolve FSM systems.
-
----
-
-## ✅ Status
-
-> ✅ Fully Working • 🧪 Demo Included • 🔁 Async Flow • 📨 Mailboxes Enabled • 🔐 Safe for LLM Use
-
----
-
-## 🚀 Run It
-
-Run `demo.lua` or `calyx_fsm_mailbox.lua` directly for live simulations.
-
----
-
-## 🌍 CALYX Ecosystem
-
-This FSM is part of the CALYX reasoning OS, optimized for:
-
-* LLM-assisted logic pipelines
-* Multi-agent state reasoning
-* Offline-first systems on embedded or edge devices
-
-For more, visit the CALYX project.
-
----
-
-**Licensed under MIT.**
-
+**IMMEDIATE ACTION**: Create `breakage_suite/mailbox_overflow.lua` to test the first hypothesized failure mode (mailbox bounds). Run it and document results in `KNOWN_FAILURES.md`.
