@@ -4,7 +4,7 @@
 -- HYPOTHESIS: Memory usage will increase with each processed batch, indicating a cumulative leak.
 
 -- Load the bundle and required modules.
-package.path = package.path .. ";../core/?.lua"
+require("init")
 local FSM = require("calyx_fsm_mailbox")
 
 -- Helper to get memory usage.

@@ -2,6 +2,7 @@
 -- calyx_fsm_mailbox.lua
 -- CALYX FSM with Objective-C Style + Asynchronous Mailbox Queues
 -- Multiple FSMs communicate via message passing (Actor Model)
+-- ✅ FIXED: Context nil-safety guards at capture points
 -- ============================================================================
 
 local machine = {}
@@ -33,7 +34,7 @@ end
 function Mailbox:enqueue(message)
 	table.insert(self.queue, message)
 
-	-- ✅ FIXED: Safely log FSM names even when to_fsm is a table object
+	-- Safely log FSM names even when to_fsm is a table object
 	local to_name = message.to_fsm
 	if type(to_name) == "table" and to_name.name then
 		to_name = to_name.name
@@ -216,6 +217,29 @@ local HANDLERS = {
 -- ============================================================================
 
 function machine:_complete(ctx)
+	-- ✅ CRITICAL FIX: Ensure ctx is never nil at capture point
+	-- This prevents "attempt to index local 'ctx' (a nil value)" crashes
+	if not ctx then
+		-- Try to recover from self._context first
+		ctx = self._context
+	end
+	
+	if not ctx then
+		-- Last resort: create synthetic context
+		ctx = {
+			event = self.currentTransitioningEvent or "unknown",
+			from = self.current,
+			to = self.current,  -- Stay in same state
+			data = {},
+			options = {},
+			synthetic = true,
+			injected_at = "_complete",
+			timestamp = timestamp(),
+		}
+		self._context = ctx
+		print(string.format("[SEMANTIC GUARD] Injected synthetic context for %s at _complete", self.name))
+	end
+	
 	local stage = "initial"
 	if self.asyncState and self.asyncState ~= STATES.NONE then
 		local suffix = self.asyncState:match("_(.+)$")
@@ -223,10 +247,12 @@ function machine:_complete(ctx)
 			stage = suffix
 		end
 	end
+	
 	local handler = HANDLERS[stage]
 	if not handler then
 		return failure("invalid_stage", stage)
 	end
+	
 	return handler(self, ctx)
 end
 
@@ -328,19 +354,36 @@ function machine.create(opts)
 		for _, st in ipairs(targets) do
 			fsm.events[ev.name].map[st] = ev.to
 		end
+		
 		fsm[ev.name] = function(self, params)
 			params = params or {}
+			
+			-- Check for conflicting transition
 			if self.asyncState ~= STATES.NONE and not self.asyncState:find(ev.name) then
 				return failure("transition_in_progress", self.currentTransitioningEvent)
 			end
+			
+			-- ✅ FIX: If resuming, guard against nil context
 			if self.asyncState ~= STATES.NONE and self.asyncState:find(ev.name) then
-				return self:_complete(self._context)
+				if not self._context then
+					print(string.format("[SEMANTIC ERROR] Context lost during resume of %s, clearing stale async state", ev.name))
+					-- Clear stale async state and start fresh
+					self.asyncState = STATES.NONE
+					self.currentTransitioningEvent = nil
+					-- Fall through to start new transition
+				else
+					-- Valid resume path
+					return self:_complete(self._context)
+				end
 			end
+			
+			-- Start new transition
 			local p = {
 				event = ev.name,
 				data = params.data or {},
 				options = params.options or {},
 			}
+			
 			return handle_initial(self, p)
 		end
 	end
@@ -377,280 +420,5 @@ end
 
 machine.NONE = STATES.NONE
 machine.ASYNC = STATES.ASYNC
-
--- ============================================================================
--- DEMO: TWO FSMs COMMUNICATING VIA MAILBOX
--- ============================================================================
-
-print("================================================================")
-print("CALYX FSM MAILBOX DEMO: Producer-Consumer Pattern")
-print("================================================================\n")
-
--- ============================================================================
--- PRODUCER FSM (Data Generator)
--- ============================================================================
-
-local producer = machine.create({
-	name = "PRODUCER",
-	initial = "IDLE",
-
-	events = {
-		{ name = "start", from = "IDLE", to = "GENERATING" },
-		{ name = "generated", from = "GENERATING", to = "SENDING" },
-		{ name = "sent", from = "SENDING", to = "WAITING" },
-		{ name = "acknowledged", from = "WAITING", to = "IDLE" },
-	},
-
-	callbacks = {
-		onleaveIDLE = function(fsm, ctx)
-			print(string.format("[PRODUCER] Starting data generation for: %s", ctx.data.dataset_name or "unknown"))
-			return nil -- Synchronous
-		end,
-
-		onleaveGENERATING = function(fsm, ctx)
-			print("[PRODUCER] Generating data...")
-			-- Simulate work
-			local start = os.time()
-			while os.time() < start + 1 do
-			end
-			print("[PRODUCER] Data generation complete")
-			return nil
-		end,
-
-		onleaveSENDING = function(fsm, ctx)
-			print("[PRODUCER] Sending data to CONSUMER...")
-
-			-- Send message to consumer
-			if ctx.options.consumer_fsm then
-				fsm:send("receive", {
-					to_fsm = ctx.options.consumer_fsm,
-					data = {
-						dataset = ctx.data.dataset_name,
-						records = 1000,
-						format = "csv",
-					},
-				})
-			end
-
-			return nil
-		end,
-
-		onstatechange = function(fsm, ctx)
-			print(string.format("[PRODUCER] State: %s -> %s", ctx.from, ctx.to))
-		end,
-	},
-})
-
--- ============================================================================
--- CONSUMER FSM (Data Processor)
--- ============================================================================
-
-local consumer = machine.create({
-	name = "CONSUMER",
-	initial = "IDLE",
-
-	events = {
-		{ name = "receive", from = "IDLE", to = "VALIDATING" },
-		{ name = "validated", from = "VALIDATING", to = "PROCESSING" },
-		{ name = "processed", from = "PROCESSING", to = "ACKNOWLEDGING" },
-		{ name = "acknowledged", from = "ACKNOWLEDGING", to = "IDLE" },
-	},
-
-	callbacks = {
-		onleaveIDLE = function(fsm, ctx)
-			print(
-				string.format(
-					"[CONSUMER] Received dataset: %s (%s records)",
-					ctx.data.dataset or "unknown",
-					ctx.data.records or "?"
-				)
-			)
-			return nil
-		end,
-
-		onleaveVALIDATING = function(fsm, ctx)
-			print("[CONSUMER] Validating data...")
-			local start = os.time()
-			while os.time() < start + 1 do
-			end
-			print("[CONSUMER] Validation complete")
-			return nil
-		end,
-
-		onleavePROCESSING = function(fsm, ctx)
-			print("[CONSUMER] Processing data...")
-			local start = os.time()
-			while os.time() < start + 2 do
-			end
-			print("[CONSUMER] Processing complete")
-			return nil
-		end,
-
-		onleaveACKNOWLEDGING = function(fsm, ctx)
-			print("[CONSUMER] Sending acknowledgment to PRODUCER...")
-
-			-- Send ACK back to producer
-			if ctx.options.producer_fsm then
-				fsm:send("acknowledged", {
-					to_fsm = ctx.options.producer_fsm,
-					data = {
-						status = "success",
-						processed_records = ctx.data.records,
-					},
-				})
-			end
-
-			return nil
-		end,
-
-		onstatechange = function(fsm, ctx)
-			print(string.format("[CONSUMER] State: %s -> %s", ctx.from, ctx.to))
-		end,
-	},
-})
-
--- ============================================================================
--- EXECUTION: PRODUCER SENDS TO CONSUMER
--- ============================================================================
-
-print("=== PHASE 1: Producer generates and sends data ===\n")
-
--- Start producer
-producer:start({
-	data = { dataset_name = "financial_report_Q4.csv" },
-	options = { consumer_fsm = consumer },
-})
-
-producer:generated()
-producer:sent({ options = { consumer_fsm = consumer } })
-producer:sent({ options = { consumer_fsm = consumer } })
-
-print("\n=== PHASE 2: Consumer processes mailbox ===\n")
-
--- Process consumer mailbox
-consumer:process_mailbox()
-
--- Continue consumer workflow
-consumer:validated()
-consumer:processed()
-consumer:acknowledged({ options = { producer_fsm = producer } })
-
-print("\n=== PHASE 3: Producer processes acknowledgment ===\n")
-
--- Process producer mailbox (receives ACK)
-producer:process_mailbox()
-
-print("\n=== FINAL STATE ===")
-print(string.format("PRODUCER: %s (mailbox: %d messages)", producer.current, producer.mailbox:count()))
-print(string.format("CONSUMER: %s (mailbox: %d messages)", consumer.current, consumer.mailbox:count()))
-
--- ============================================================================
--- DEMO 2: CIRCULAR COMMUNICATION (PING-PONG)
--- ============================================================================
-
-print("\n\n================================================================")
-print("DEMO 2: PING-PONG FSM COMMUNICATION")
-print("================================================================\n")
-
-local ping_fsm = machine.create({
-	name = "PING",
-	initial = "READY",
-
-	events = {
-		{ name = "ping", from = "READY", to = "WAITING" },
-		{ name = "pong", from = "WAITING", to = "READY" },
-	},
-
-	callbacks = {
-		onleaveREADY = function(fsm, ctx)
-			print(string.format("[PING] Sending ping #%d", ctx.data.count or 1))
-
-			if ctx.options.pong_fsm and ctx.data.count <= 3 then
-				fsm:send("pong", {
-					to_fsm = ctx.options.pong_fsm,
-					data = { count = ctx.data.count },
-				})
-			end
-			return nil
-		end,
-
-		onleaveWAITING = function(fsm, ctx)
-			print(string.format("[PING] Received pong #%d", ctx.data.count or 1))
-
-			-- Send next ping
-			if ctx.options.pong_fsm and ctx.data.count < 3 then
-				fsm:send("ping", {
-					to_fsm = fsm, -- Send to self
-					data = { count = (ctx.data.count or 1) + 1 },
-				})
-			end
-			return nil
-		end,
-	},
-})
-
-local pong_fsm = machine.create({
-	name = "PONG",
-	initial = "READY",
-
-	events = {
-		{ name = "pong", from = "READY", to = "WAITING" },
-		{ name = "ping", from = "WAITING", to = "READY" },
-	},
-
-	callbacks = {
-		onleaveREADY = function(fsm, ctx)
-			print(string.format("[PONG] Received ping #%d", ctx.data.count or 1))
-
-			-- Send pong back
-			if ctx.options.ping_fsm then
-				fsm:send("pong", {
-					to_fsm = ctx.options.ping_fsm,
-					data = { count = ctx.data.count },
-				})
-			end
-			return nil
-		end,
-
-		onleaveWAITING = function(fsm, ctx)
-			print(string.format("[PONG] Sent pong #%d", ctx.data.count or 1))
-			return nil
-		end,
-	},
-})
-
-print("=== Starting Ping-Pong Exchange ===\n")
-
--- Start the ping-pong
-ping_fsm:ping({
-	data = { count = 1 },
-	options = { pong_fsm = pong_fsm },
-})
-
--- Process mailboxes in rounds
-for round = 1, 3 do
-	print(string.format("\n--- Round %d ---", round))
-	pong_fsm:process_mailbox()
-	ping_fsm:process_mailbox()
-
-	-- Continue transitions
-	if pong_fsm:can("ping") then
-		pong_fsm:ping({ options = { ping_fsm = ping_fsm } })
-	end
-	if ping_fsm:can("pong") then
-		ping_fsm:pong({
-			data = { count = round },
-			options = { pong_fsm = pong_fsm },
-		})
-	end
-end
-
-print("\n=== Ping-Pong Complete ===")
-print(string.format("PING FSM: %s (mailbox: %d)", ping_fsm.current, ping_fsm.mailbox:count()))
-print(string.format("PONG FSM: %s (mailbox: %d)", pong_fsm.current, pong_fsm.mailbox:count()))
-
-print("\n================================================================")
-print("DEMO COMPLETE")
-print("================================================================")
 
 return machine

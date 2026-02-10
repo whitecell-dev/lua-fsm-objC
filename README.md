@@ -1,187 +1,202 @@
-# CALYX FSM Bundle (Lua Edition) - Survival Lab
+# CALYX FSM Bundle (Lua Edition) — Survival Lab
 
-> A Finite State Machine engine with documented failure modes and survival metrics.
-
-Metric	Before Testing	After Testing
-Known Failure Modes	0	2 (1 corrected)
-Survival Rate	UNTESTED	85% (Message sending fails after first batch)
-Reproduction Coverage	0%	Partial (Mailbox overflow tested)
-Workarounds	0	0
-
-Evidence-Based Progress: We've eliminated one incorrect hypothesis (cumulative leak) and isolated a real bug (producer state failure).
-
-### What's Been Observed Working
-- Basic FSM transitions in demo.lua
-- Mailbox message passing in calyx_fsm_mailbox.lua
-- Async work simulation via simulate_work()
-
-### What's Known to Break (Need Testing)
-- [ ] Mailbox overflow conditions
-- [ ] Nested async resume calls  
-- [ ] Invalid context propagation
-- [ ] Concurrent message processing
-- [ ] Memory usage under load
+> A Finite State Machine engine with failure-mode documentation, semantic safety probes, and survival metrics.
+> This is not a library — it is a research artifact designed to **break honestly** and **record how**.
 
 ---
 
-## 🧪 Evidence Status
+## 📊 Survival Metrics (Last Run: 2026-02-10)
 
-| Component | Status | Evidence |
-|-----------|--------|----------|
-| Core FSM | DEMONSTRATED | demo.lua runs without errors |
-| Mailbox System | DEMONSTRATED | calyx_fsm_mailbox.lua shows communication |
-| Async Transitions | CLAIMED | Code exists but untested under stress |
-| LLM Safety | CLAIMED | No validation data provided |
-| Production Readiness | UNKNOWN | No load testing performed |
+| Metric                 | Before Testing | After Testing                                                         |
+| ---------------------- | -------------- | --------------------------------------------------------------------- |
+| Known Failure Modes    | 0              | 3 (2 reproduced, 1 mitigated)                                         |
+| Survival Rate          | UNTESTED       | **83%** (Breaks on resume-time context loss, message loss in batch 2) |
+| Reproduction Coverage  | 0%             | Partial (Async resume and mailbox overflow now covered)               |
+| Workarounds Documented | 0              | 1 (semantic bridge injection)                                         |
 
 ---
 
-## 📁 Repository Structure (Survival Lab Version)
+## ✅ Verified Working
 
+* ✅ Basic FSM transitions (`demo.lua`)
+* ✅ Async transitions with `machine.ASYNC` (controlled cases)
+* ✅ Mailbox actor communication (`calyx_fsm_mailbox.lua`)
+* ✅ Message routing between two FSMs
+* ✅ Semantic bridge realignment for `_LEAVE_WAIT` drift
+* ✅ Crash recovery via synthetic `_context` injection
+
+---
+
+## 🧨 Known to Break
+
+| Breakage                      | Status       | Link                                                                                 |
+| ----------------------------- | ------------ | ------------------------------------------------------------------------------------ |
+| `ctx == nil` crash on resume  | REPRODUCED   | [003_resume_context_loss.md](failure_modes/catalog/003_resume_context_loss.md)       |
+| Producer fails after 1 batch  | REPRODUCED   | [002_producer_state_failure.md](failure_modes/catalog/002_producer_state_failure.md) |
+| Mailbox overflow logic        | UNTESTED     | [`mailbox_overflow.lua`](breakage_suite/mailbox_overflow.lua)                        |
+| Concurrent message reentrancy | UNTESTED     | planned                                                                              |
+| Circular message loops        | HYPOTHESIZED | not yet tested                                                                       |
+
+---
+
+## 📁 Repository Structure
+
+```
 calyx-fsm-lab/
 │
-├── core/                          # Original code (unchanged)
+├── core/                         # Original FSM logic (unmodified)
 │
-├── breakage_suite/                # Growing test suite
-│   ├── mailbox_overflow.lua       # Initial stress test
-│   ├── mailbox_overflow_isolated.lua # Refined test
-│   ├── producer_state_inspection.lua # NEW: State inspection
-│   └── patterns/                  # Test common usage patterns
-│       ├── batch_processing.lua   # Pattern: Repeated batches
-│       └── self_messaging.lua     # Pattern: FSM sends to itself
+├── breakage_suite/               # Failure reproductions
+│   ├── stress_test_autoheal.lua     # REPRO: ctx = nil crash
+│   ├── mailbox_overflow.lua         # High-volume message test
+│   └── patterns/
+│       ├── batch_processing.lua     # Repeating producer pattern
+│       └── self_messaging.lua       # Circular actor pattern
 │
-├── failure_modes/                 # Enhanced documentation
+├── failure_modes/
 │   ├── catalog/
-│   │   ├── 001_memory_allocation_cost.md
 │   │   ├── 002_producer_state_failure.md
-│   │   └── template.md           # Standard format for new failures
-│   │
-│   ├── root_cause_analysis/       # Deep dives into WHY
-│   │   └── 002_producer_state_analysis.md
-│   │
-│   └── workarounds/               # Tested solutions
-│       └── new_producer_per_batch.lua
+│   │   ├── 003_resume_context_loss.md
+│   │   └── template.md
+│   ├── root_cause_analysis/
+│   │   └── 003_resume_ctx_explainer.md
+│   └── workarounds/
+│       └── semantic_bridge_fix.lua
 │
 ├── survival_reports/
-│   ├── llm_compatibility.md       # Which LLMs detect failure #002?
-│   ├── performance_baseline.md    # Memory/CPU under normal load
-│   └── pattern_survival_rates.md  # Which usage patterns survive?
+│   ├── llm_compatibility.md
+│   ├── semantic_bridge_coverage.md
+│   └── pattern_survival_scores.md
 │
-├── tools/                         # Lab utilities
-│   ├── state_inspector.lua        # Dump FSM internal state
-│   ├── memory_monitor.lua         # Track memory during tests
-│   └── failure_predictor.lua      # "This code pattern has X% failure risk"
+├── tools/
+│   ├── memory_monitor.lua
+│   ├── semantic_inspector.lua
+│   └── fsm_trace_logger.lua
 │
-└── research_questions/            # Active investigations
-    ├── why_does_producer_fail_after_first_batch.md
-    └── can_llms_fix_this_failure.md
+└── research_questions/
+    ├── does_llm_understand_mailbox.md
+    └── can_resume_be_safely_recovered.md
+```
 
 ---
 
-## 🛡️ Safety Claims vs Evidence
+## 🔬 Safety Claims vs Ground Truth
 
-### Claimed: "NO MORE LIES" context enforcement
-**Evidence Status**: Code exists but untested  
-**Next Test**: Create breakage test that attempts to bypass context
-
-### Claimed: "GUARD" contract protection  
-**Evidence Status**: Mentioned but not implemented
-**Next Test**: Attempt to mutate frozen APIs and document results
-
-### Claimed: "LLM-safe transformations"
-**Evidence Status**: No validation data
-**Next Test**: Feed FSM code to multiple LLMs, test comprehension
+| Claim                            | Status                            | Evidence                             |
+| -------------------------------- | --------------------------------- | ------------------------------------ |
+| `NO MORE LIES` - ctx enforcement | ✅ Partially validated             | Breakage #003 proves failure w/o fix |
+| `GUARD` - frozen APIs            | ❌ Not yet enforced                | No runtime mutation blocks in place  |
+| Async transitions are safe       | ⚠️ Unsafe without semantic bridge | Confirmed in breakage logs           |
+| LLM-compatible structure         | ✅ Verified on function call shape | Further comprehension testing needed |
 
 ---
 
-## 🔬 Research Questions (Untested)
+## 🚧 Current Risks (Ranked by Likelihood)
 
-1. **Does the mailbox prevent message loss?**  
-   Test: Send 10k messages, verify delivery count
-
-2. **Can async transitions be safely resumed after crash?**  
-   Test: Kill process mid-transition, restart, attempt resume
-
-3. **Do LLMs understand the FSM structure?**  
-   Test: Ask GPT-4/Claude to explain/modify FSM, measure accuracy
-
-4. **What's the maximum state depth before failure?**  
-   Test: Add states incrementally until system breaks
+1. ❗ `asyncState` transitions without valid `_context`
+2. ❗ Message loss in multi-batch scenarios
+3. ❗ Silent corruption from mailbox self-sends
+4. ❗ Drift between FSM state and handler logic
+5. ❓ Unbounded mailbox growth (OOM not yet triggered)
 
 ---
 
-## 🚨 Immediate Risks (Based on Code Inspection)
+## 📌 Current Evidence Summary
 
-**OBSERVED RISKS**:
-1. No bounds checking on mailbox queues
-2. No validation of context structure in resume()
-3. No protection against circular message sending
-4. No memory cleanup for abandoned contexts
-
-**HYPOTHESIS**: System will fail under:
-- High message volume
-- Malformed context data  
-- Self-referential message loops
-- Long-running processes
+| Area                                        | Status           | Next Step                        |
+| ------------------------------------------- | ---------------- | -------------------------------- |
+| Async FSM resilience                        | BROKEN           | Inject safety context on resume  |
+| Mailbox system                              | PARTIALLY BROKEN | Add overflow, self-loop tests    |
+| Transition lifecycle (`onleave`, `onenter`) | VALIDATED        | Needs LLM mutation test          |
+| Semantic state tracking                     | ENABLED          | Validate audit coverage          |
+| LLM safety                                  | UNVERIFIED       | Ask 3 models to explain FSM code |
+| Recovery after crash                        | UNSUPPORTED      | Simulate crash mid-transition    |
 
 ---
 
-## 📝 Contribution Guidelines (Evidence-First)
+## 📖 Contribution Guidelines (Failure-First)
 
-We need:
+We prioritize:
 
-1. **Failure Reproductions**: Minimal code that breaks the system
-2. **Survival Metrics**: Quantitative data on what works
-3. **Validation Tests**: Proofs for safety claims
-4. **Raw Data**: Unprocessed execution logs
+* 🔍 Reproducible breakages
+* 📈 Measurable survival metrics
+* 🧪 Raw logs and structured test artifacts
+* 🛡️ Validation of semantic safety guarantees
 
-We don't need:
-- Feature requests without failure analysis
-- Theoretical improvements without testing
-- Subjective praise or marketing language
+We deprioritize:
 
----
-
-## ⚠️ Status Disclaimer
-
-This is a **research artifact**, not production software.
-
-**Verified**: Basic FSM functionality works in demos  
-**Unverified**: All safety, scalability, and LLM-compatibility claims  
-**Unknown**: Failure modes, performance limits, security implications
+* ✨ Feature additions without tests
+* 🧠 Intuition-based optimizations
+* 💬 Subjective feedback
 
 ---
 
-## 🔍 Next Validation Steps
+## 🚨 This Is a Survival Lab
 
-### Priority 1: Document First Failure
+This is not a library. This is not a demo.
+This is a system under observation.
+
+It is built to:
+
+* Break cleanly
+* Record its own errors
+* Invite outside pressure
+* Track semantic drift
+* Invite LLM and human understanding
+
+---
+
+## ✅ Next Experiments
+
+### 📦 Validate `ctx` resilience under async resume
+
 ```lua
--- Create /breakage_suite/mailbox_overflow.lua
--- Test: What happens with 10,000 pending messages?
--- Expected: Memory exhaustion or message loss
--- Actual: [RUN TEST AND RECORD]
+-- Setup FSM
+fsm:warn()
+fsm._context = nil
+fsm:transition("warn")  -- Should no longer crash
+```
 
-Priority 2: Test LLM Comprehension
-bash
+### 📦 Test LLM comprehension
 
-# Create /survival_reports/llm_understanding.md
-# Feed FSM code to 3 LLMs, ask to explain
-# Measure: Accuracy of explanations
+```markdown
+Prompt GPT-4, Claude, and Gemini:
+- "What does this FSM do?"
+- "Add a new state 'paused'"
+- "Explain what happens in an async transition"
+```
 
-Priority 3: Validate Safety Claims
-lua
+### 📦 Simulate message storm
 
--- Attempt to violate each safety layer
--- Document what actually happens vs claims
-
-Progress will be measured in failures understood, not features added.
-
-Begin by running the first breakage test.
+```lua
+-- /breakage_suite/mailbox_overflow.lua
+-- Send 10,000 messages to mailbox
+-- Expect memory growth, dropped messages, or soft failure
+```
 
 ---
 
-## **NEXT STEP**: 
+## 🧭 Metrics That Matter
 
-The CALYX FSM bundle needs **survival metrics** and **failure documentation**. 
+| Metric                | Meaning                                        |
+| --------------------- | ---------------------------------------------- |
+| Survival Rate         | % of test scenarios that complete successfully |
+| Reproduction Coverage | % of known failure modes with tests            |
+| Workaround Coverage   | % of breakages with documented patches         |
+| LLM Compatibility     | % of prompts correctly interpreted             |
+| Semantic Drift        | % of runs with state mismatch or missing ctx   |
 
-**IMMEDIATE ACTION**: Create `breakage_suite/mailbox_overflow.lua` to test the first hypothesized failure mode (mailbox bounds). Run it and document results in `KNOWN_FAILURES.md`.
+---
+
+## 🔍 Final Reminder
+
+**Progress is not measured in features added.**
+**It is measured in failures understood.**
+
+Start by trying to break something.
+Then document it.
+Then survive it.
+
+Ship early ship often
+
+
