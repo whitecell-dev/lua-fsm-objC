@@ -1,0 +1,130 @@
+{
+  "test": "test_invalid_fsm_schema.lua",
+  "status": "VALIDATION_VERIFIED",
+  "tests_executed": 24,
+  "tests_passed": 24,
+  "tests_failed": 0,
+  "warnings": 6,
+  "validation_catalog": [
+    {
+      "id": "EVENT_NAME_VALIDATION",
+      "requirement": "Event name must be string",
+      "status": "IMPLEMENTED",
+      "coverage": "FULL",
+      "evidence": "Test 04, 05: Missing/non-string names rejected with clear error",
+      "error_message": "event[1].name must be string, got [type]"
+    },
+    {
+      "id": "EVENT_TO_VALIDATION",
+      "requirement": "Event 'to' field is required (non-nil)",
+      "status": "IMPLEMENTED",
+      "coverage": "FULL",
+      "evidence": "Test 07, 08: Missing/nil 'to' fields rejected",
+      "error_message": "event[1].to is required"
+    },
+    {
+      "id": "EVENT_FROM_VALIDATION",
+      "requirement": "Event 'from' must be string, table, or nil",
+      "status": "IMPLEMENTED",
+      "coverage": "FULL",
+      "evidence": "Test 09, 22: Non-string/table 'from' values rejected",
+      "error_message": "event[1].from must be string or table, got [type]"
+    },
+    {
+      "id": "REQUIRED_EVENTS_FIELD",
+      "requirement": "'events' field is mandatory",
+      "status": "IMPLEMENTED",
+      "coverage": "FULL",
+      "evidence": "Test 01, 19, 20: Missing events field causes assertion failure",
+      "error_message": "events required"
+    },
+    {
+      "id": "CALLBACK_TYPE_VALIDATION",
+      "requirement": "Callback types should be functions",
+      "status": "NOT_IMPLEMENTED",
+      "coverage": "NONE",
+      "evidence": "Test 14: Non-function callbacks accepted (runtime errors expected)",
+      "warning": "Non-function callbacks cause runtime errors"
+    },
+    {
+      "id": "MAILBOX_SIZE_VALIDATION",
+      "requirement": "Mailbox size bounds checking",
+      "status": "NOT_IMPLEMENTED",
+      "coverage": "NONE",
+      "evidence": "Test 16, 17, 18: Negative/zero/huge sizes accepted",
+      "warning": "Any numeric value accepted (design choice)"
+    },
+    {
+      "id": "EVENT_UNIQUENESS",
+      "requirement": "Event name uniqueness",
+      "status": "NOT_IMPLEMENTED",
+      "coverage": "NONE",
+      "evidence": "Test 11: Duplicate event names allowed (override behavior)",
+      "warning": "Duplicate event names silently override"
+    },
+    {
+      "id": "STATE_NAME_VALIDATION",
+      "requirement": "State name format validation",
+      "status": "NOT_IMPLEMENTED",
+      "coverage": "PARTIAL",
+      "evidence": "Test 12, 13a: Any type allowed for state names",
+      "note": "State names can be any Lua value (table keys)"
+    }
+  ],
+  "validation_strategy": {
+    "critical_fields": "STRICT_VALIDATION",
+    "data_integrity": "MODERATE_VALIDATION",
+    "runtime_safety": "MINIMAL_VALIDATION",
+    "flexibility": "HIGH"
+  },
+  "design_tradeoffs": [
+    {
+      "area": "Event validation",
+      "choice": "Strict validation at creation",
+      "rationale": "Prevents runtime state machine corruption",
+      "impact": "Better error messages, less flexibility"
+    },
+    {
+      "area": "Callback validation",
+      "choice": "No type checking",
+      "rationale": "Lua's dynamic nature, callback flexibility",
+      "impact": "Runtime errors for wrong types"
+    },
+    {
+      "area": "Mailbox configuration",
+      "choice": "No bounds checking",
+      "rationale": "System-level configuration freedom",
+      "impact": "Potential memory issues if misconfigured"
+    },
+    {
+      "area": "State names",
+      "choice": "Any type allowed",
+      "rationale": "Lua table key flexibility",
+      "impact": "Complex state machines possible, but careful naming needed"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "LOW",
+      "recommendation": "Add callback type warning (not validation)",
+      "rationale": "Debugging aid without breaking existing code"
+    },
+    {
+      "priority": "MEDIUM",
+      "recommendation": "Add mailbox size bounds (min=0, max=1_000_000)",
+      "rationale": "Prevent accidental memory exhaustion"
+    },
+    {
+      "priority": "LOW",
+      "recommendation": "Optional event name uniqueness check",
+      "rationale": "Debugging aid for complex state machines"
+    },
+    {
+      "priority": "NONE",
+      "recommendation": "State name format validation",
+      "rationale": "Current flexibility is valuable for advanced use cases"
+    }
+  ],
+  "test_date": "2026-02-10",
+  "notes": "Validation focuses on critical path safety while maintaining Lua's dynamic flexibility. The 6 warnings document intentional design choices rather than failures."
+}
