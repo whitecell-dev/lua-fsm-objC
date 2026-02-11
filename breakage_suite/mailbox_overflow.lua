@@ -5,7 +5,7 @@
 
 -- Load the bundle and required modules.
 -- Path is relative to the root of the survival lab.
-package.path = package.path .. ";../core/?.lua"
+require("init")
 local FSM = require("calyx_fsm_mailbox")
 
 -- Helper to get memory usage (if available, otherwise placeholder)

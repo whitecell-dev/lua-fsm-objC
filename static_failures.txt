@@ -1,0 +1,13 @@
+Checking core/calyx_fsm_mailbox.lua               [0m[31m[1m9 warnings[0m
+
+    core/calyx_fsm_mailbox.lua:226:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:242:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:250:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:255:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:357:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:360:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:365:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:379:1: line contains only whitespace
+    core/calyx_fsm_mailbox.lua:386:1: line contains only whitespace
+
+Total: [0m[31m[1m9[0m warnings / [0m[0m[1m0[0m errors in 1 file

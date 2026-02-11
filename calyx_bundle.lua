@@ -1,11 +1,11 @@
+-- CALYX BUNDLE GENERATED: Tue Feb 10 21:41:11 2026
 local bundle = { modules = {}, loaded = {} }
 
 local function load_module(name)
     if bundle.loaded[name] then return bundle.loaded[name] end
     local module = bundle.modules[name]
     if not module then error('MODULE_MISSING: ' .. name) end
-    local loader = _G.loadstring or _G.load
-    local fn, err = loader(module, name)
+    local fn, err = loadstring(module, name)
     if not fn then error('LOAD_FAILURE ['..name..']: ' .. err) end
     bundle.loaded[name] = fn()
     return bundle.loaded[name]
@@ -955,4 +955,15 @@ package.preload['data_handlers'] = function() return load_module('data_handlers'
 package.preload['calyx_fsm_mailbox'] = function() return load_module('calyx_fsm_mailbox') end
 package.preload['calyx_fsm_objc'] = function() return load_module('calyx_fsm_objc') end
 
-return bundle
+-- ===== ABI ASSEMBLY =====
+local machine = load_module('calyx_fsm_mailbox')
+local STATES = {
+    NONE = machine.NONE or 'none',
+    ASYNC = machine.ASYNC or 'async',
+}
+
+return {
+    create = machine.create,
+    NONE = STATES.NONE,
+    ASYNC = STATES.ASYNC,
+}
