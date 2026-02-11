@@ -593,14 +593,7 @@ function M.validate_shape(obj, schema, path)
 			-- Continue to next iteration
 		else
 			if actual_value == nil then
-				error(
-					string.format(
-						"[HARDENED] Missing required field %s.%s (expected %s)",
-						path,
-						key,
-						expected_type
-					)
-				)
+				error(string.format("[HARDENED] Missing required field %s.%s (expected %s)", path, key, expected_type))
 			end
 			-- Validate the type
 			if actual_type ~= expected_type then

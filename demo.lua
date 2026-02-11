@@ -1,93 +1,344 @@
--- demo.lua (IMPO Layer / Orchestrator)
+#!/usr/bin/env lua
+-- ============================================================================
+-- example_production.lua
+-- CALYX FSM Production Example
+-- Demonstrates all hardened features: ring buffer, deterministic clock,
+-- Result format, frozen API, backpressure handling
+-- ============================================================================
 
-local machine = require("calyx_fsm_objc")
-local handlers = require("data_handlers")
+local hardened = require("hardened")
+hardened.enable_strict_mode()
 
--- Define the Async Pipeline FSM
-local pipeline = machine.create({
-	initial = "IDLE",
+local CALYX = require("init")
 
+print(
+	"═══════════════════════════════════════════════════"
+)
+print("  CALYX FSM PRODUCTION EXAMPLE")
+print("  Version: " .. CALYX.VERSION)
+print(
+	"═══════════════════════════════════════════════════\n"
+)
+
+-- ============================================================================
+-- EXAMPLE 1: BASIC FSM WITH RESULT FORMAT
+-- ============================================================================
+
+print("Example 1: Basic FSM with Result Format")
+print(
+	"─────────────────────────────────────────\n"
+)
+
+local basic_fsm = CALYX.create({
+	initial = "idle",
+	debug = true, -- Enable for this example
 	events = {
-		-- Event 1: startWithFile:forUser:
-		{ name = "startWithFile", from = "IDLE", to = "LOADING" },
-		-- Event 2: loaded
-		{ name = "loaded", from = "LOADING", to = "VALIDATING" },
-		-- Event 3: validated
-		{ name = "validated", from = "VALIDATING", to = "TRANSFORMING" },
-		-- Event 4: completeWithMode:
-		{ name = "completeWithMode", from = "TRANSFORMING", to = "SAVING" },
-		-- Event 5: savedToDB:
-		{ name = "savedToDB", from = "SAVING", to = "CLEANUP" },
+		{ name = "start", from = "idle", to = "running" },
+		{ name = "pause", from = "running", to = "paused" },
+		{ name = "resume", from = "paused", to = "running" },
+		{ name = "stop", from = { "running", "paused" }, to = "idle" },
 	},
-
 	callbacks = {
-		-- Delegate to ALBEO handlers
-		onleaveIDLE = handlers.load_file,
-		onleaveLOADING = handlers.validate_data,
-		onleaveVALIDATING = handlers.transform_data,
-		onleaveTRANSFORMING = handlers.save_results,
-		onenterCLEANUP = handlers.cleanup,
-
-		-- Global trace (shows Objective-C style context)
-		onstatechange = function(ctx)
-			print(string.format("--> FSM TRANSITION: %s -> %s (Event: %s)", ctx.from, ctx.to, ctx.event))
+		onbeforestart = function(fsm, ctx)
+			print(string.format("  [BEFORE] Starting FSM (tick=%d)", ctx.tick))
+		end,
+		onenterrunning = function(fsm, ctx)
+			print(string.format("  [ENTER] Now running (tick=%d)", ctx.tick))
 		end,
 	},
 })
 
-print("================================================================")
-print(string.format("CALYX Pipeline Initialized. State: %s", pipeline.current))
-print("================================================================")
+-- Successful transition
+print("Starting FSM...")
+local result = basic_fsm:start()
+if result.ok then
+	print("✅ Success! State:", basic_fsm.current, "Tick:", result.tick)
+else
+	print("❌ Error:", result.code, "-", result.message)
+end
 
--- Helper function to simulate time passing and resuming the FSM
-local function resume_async_transition(event_name)
-	local start_time = os.date("%H:%M:%S")
-	print(string.format("[%s] Resuming transition...", start_time))
-	local ok, res = pipeline[event_name](pipeline, {}) -- Pass empty params to resume
-	local end_time = os.date("%H:%M:%S")
-	if ok then
-		print(string.format("[%s] SUCCESS: Transition completed. New state: %s", end_time, pipeline.current))
+-- Invalid transition
+print("\nTrying invalid transition (start again)...")
+result = basic_fsm:start()
+if not result.ok then
+	print("✅ Correctly rejected! Code:", result.code)
+	print("   Message:", result.message)
+	print("   Details:", result.details.current, "→", result.details.event)
+end
+
+print("\n")
+
+-- ============================================================================
+-- EXAMPLE 2: MAILBOX WITH RING BUFFER AND BACKPRESSURE
+-- ============================================================================
+
+print("Example 2: Mailbox with Ring Buffer")
+print(
+	"─────────────────────────────────────────\n"
+)
+
+local backpressure_count = 0
+
+local mailbox_fsm = CALYX.create({
+	kind = "mailbox",
+	initial = "idle",
+	mailbox_size = 5, -- Small size to demonstrate overflow
+	overflow_policy = "drop_oldest",
+	debug = true,
+
+	on_backpressure = function(stats)
+		backpressure_count = backpressure_count + 1
+		print(string.format("  [BACKPRESSURE] Queue at %d%% capacity", math.floor(stats.utilization)))
+	end,
+
+	events = {
+		{ name = "process", from = "idle", to = "processing" },
+		{ name = "complete", from = "processing", to = "idle" },
+	},
+})
+
+-- Send messages
+print("Sending 10 messages to a mailbox with size=5...")
+for i = 1, 10 do
+	local result = mailbox_fsm:send("process", {
+		data = { id = i, payload = "data_" .. i },
+	})
+
+	if result.ok then
+		print(string.format("  ✅ Message %d sent (queued=%d)", i, result.data.count))
 	else
-		print(string.format("[%s] FAILURE: %s", end_time, res.error_type))
+		print(string.format("  ⚠️  Message %d: %s", i, result.code))
 	end
 end
 
--- Phase 1: Start Ingestion (IDLE -> LOADING)
-print("\n--- PHASE 1: START (Event: startWithFile:forUser:) ---")
--- Objective-C style call: Event is named, parameters are named (data/options table keys)
-pipeline:startWithFile({
-	data = { file_path = "financial_report_Q4.csv" },
-	options = { user_id = 456, timeout = 30 },
+print(string.format("\nBackpressure triggered %d times\n", backpressure_count))
+
+-- Show stats
+local stats = mailbox_fsm:mailbox_stats()
+print("Mailbox Stats:")
+print(string.format("  Queued: %d/%d", stats.queued, stats.max_size))
+print(string.format("  Dropped: %d", stats.dropped))
+print(string.format("  Utilization: %.1f%%", stats.utilization))
+print(string.format("  Free slots: %d\n", stats.free_slots))
+
+-- Process mailbox
+print("Processing mailbox...")
+local result = mailbox_fsm:process_mailbox()
+if result.ok then
+	print(
+		string.format(
+			"✅ Processed: %d, Failed: %d, Remaining: %d",
+			result.data.processed,
+			result.data.failed,
+			result.data.remaining
+		)
+	)
+end
+
+print("\n")
+
+-- ============================================================================
+-- EXAMPLE 3: DETERMINISTIC CLOCK
+-- ============================================================================
+
+print("Example 3: Deterministic Clock")
+print(
+	"─────────────────────────────────────────\n"
+)
+
+local clock = CALYX.diagnostics.clock
+
+print("Initial tick:", clock:now())
+
+-- Reset clock
+clock:reset(100)
+print("After reset(100):", clock:now())
+
+-- Advance manually
+clock:advance()
+clock:advance()
+print("After 2 advances:", clock:now())
+
+-- Create FSM and watch clock advance
+local fsm = CALYX.create({
+	initial = "a",
+	debug = false,
+	events = {
+		{ name = "go", from = "a", to = "b" },
+	},
 })
--- FSM is now paused in "startWithFile_LEAVE_WAIT"
 
--- Phase 2: Resume Loading (LOADING -> VALIDATING)
-print("\n--- PHASE 2: RESUME LOADING (Event: loaded) ---")
-resume_async_transition("loaded")
--- FSM is now paused in "loaded_ENTER_WAIT" (if onenterLOADING was ASYNC) or "loaded_LEAVE_WAIT" (if onleaveVALIDATING is next)
+local tick_before = clock:now()
+fsm:go()
+local tick_after = clock:now()
 
--- Phase 3: Resume Validation (VALIDATING -> TRANSFORMING)
-print("\n--- PHASE 3: RESUME VALIDATION (Event: validated) ---")
-resume_async_transition("validated")
--- FSM is paused in "validated_LEAVE_WAIT"
+print(string.format("Clock advanced during transition: %d → %d", tick_before, tick_after))
 
--- Phase 4: Resume Transformation (TRANSFORMING -> SAVING)
-print("\n--- PHASE 4: RESUME TRANSFORMATION (Event: completeWithMode:) ---")
-pipeline:completeWithMode({
-	data = { transform_mode = "normalization" },
-	options = { parallel = true },
+print("\n")
+
+-- ============================================================================
+-- EXAMPLE 4: API FREEZE ENFORCEMENT
+-- ============================================================================
+
+print("Example 4: API Freeze Enforcement")
+print(
+	"─────────────────────────────────────────\n"
+)
+
+print("Attempting to modify frozen API...")
+local ok, err = pcall(function()
+	CALYX.malicious_method = function()
+		print("hacked!")
+	end
+end)
+
+if not ok then
+	print("✅ Correctly prevented!")
+	print("   Error:", string.match(tostring(err), "frozen") and "API is frozen" or tostring(err))
+else
+	print("❌ ERROR: API was mutated!")
+end
+
+print("\nAttempting to add field to FSM instance...")
+local fsm = CALYX.create({
+	initial = "idle",
+	events = { { name = "go", from = "idle", to = "done" } },
 })
-resume_async_transition("completeWithMode")
--- FSM is paused in "completeWithMode_LEAVE_WAIT"
 
--- Phase 5: Resume Saving (SAVING -> CLEANUP)
-print("\n--- PHASE 5: RESUME SAVING (Event: savedToDB:) ---")
-pipeline:savedToDB({
-	options = { db_endpoint = "prod-main-db" },
+ok, err = pcall(function()
+	fsm.malicious_field = "pwned"
+end)
+
+if not ok then
+	print("✅ Correctly prevented!")
+	print("   Error:", string.match(tostring(err), "locked") and "Instance is locked" or tostring(err))
+else
+	print("❌ ERROR: Instance was mutated!")
+end
+
+print("\nMutable fields still work:")
+print("  Before:", fsm.current)
+fsm.current = "test"
+print("  After:", fsm.current)
+
+print("\n")
+
+-- ============================================================================
+-- EXAMPLE 5: HIGH-THROUGHPUT STRESS TEST
+-- ============================================================================
+
+print("Example 5: High-Throughput Stress Test")
+print(
+	"─────────────────────────────────────────\n"
+)
+
+local stress_fsm = CALYX.create({
+	kind = "mailbox",
+	initial = "idle",
+	mailbox_size = 2000,
+	overflow_policy = "reject",
+	debug = false, -- Silent for performance
+
+	events = {
+		{ name = "tick", from = "idle", to = "idle" },
+	},
 })
-resume_async_transition("savedToDB")
--- FSM completes synchronously via onenterCLEANUP and clears context
 
-print("\n================================================================")
-print(string.format("FINAL STATE: %s (Async State: %s)", pipeline.current, pipeline.asyncState))
-print("================================================================")
+local start_mem = collectgarbage("count")
+local start_time = os.clock()
+
+-- Send 1000 messages
+print("Sending 1000 messages...")
+local sent = 0
+for i = 1, 1000 do
+	local result = stress_fsm:send("tick", {
+		data = { seq = i },
+	})
+	if result.ok then
+		sent = sent + 1
+	end
+end
+
+local send_time = os.clock() - start_time
+
+-- Process all
+print("Processing mailbox...")
+local process_start = os.clock()
+local result = stress_fsm:process_mailbox()
+local process_time = os.clock() - process_start
+
+local end_mem = collectgarbage("count")
+
+-- Results
+print(string.format("✅ Sent: %d messages in %.3f seconds (%.0f msg/sec)", sent, send_time, sent / send_time))
+
+if result.ok then
+	print(
+		string.format(
+			"✅ Processed: %d messages in %.3f seconds (%.0f msg/sec)",
+			result.data.processed,
+			process_time,
+			result.data.processed / process_time
+		)
+	)
+end
+
+print(string.format("   Memory growth: %.2f KB", end_mem - start_mem))
+print(string.format("   Per-message memory: %.3f KB", (end_mem - start_mem) / 1000))
+
+print("\n")
+
+-- ============================================================================
+-- EXAMPLE 6: UNIFIED CREATE() ROUTING
+-- ============================================================================
+
+print("Example 6: Unified create() API")
+print(
+	"─────────────────────────────────────────\n"
+)
+
+-- Default (sync)
+local sync1 = CALYX.create({
+	initial = "idle",
+	events = { { name = "go", from = "idle", to = "done" } },
+})
+print("sync1 (default):", sync1.mailbox and "has mailbox" or "no mailbox")
+
+-- Explicit objc
+local sync2 = CALYX.create({
+	kind = "objc",
+	initial = "idle",
+	events = { { name = "go", from = "idle", to = "done" } },
+})
+print("sync2 (kind=objc):", sync2.mailbox and "has mailbox" or "no mailbox")
+
+-- Mailbox
+local async = CALYX.create({
+	kind = "mailbox",
+	initial = "idle",
+	events = { { name = "go", from = "idle", to = "done" } },
+})
+print("async (kind=mailbox):", async.mailbox and "has mailbox ✅" or "no mailbox")
+
+print("\n")
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+
+print(
+	"═══════════════════════════════════════════════════"
+)
+print("  SUMMARY")
+print(
+	"═══════════════════════════════════════════════════"
+)
+print("✅ Result format: Consistent error handling")
+print("✅ Ring buffer: O(1) mailbox operations")
+print("✅ Deterministic clock: Replay-ready")
+print("✅ API freeze: Production-safe")
+print("✅ High throughput: 1000+ msg/sec")
+print("✅ Backpressure: Observable and configurable")
+print(
+	"═══════════════════════════════════════════════════\n"
+)

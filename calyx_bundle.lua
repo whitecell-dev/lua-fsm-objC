@@ -1,4 +1,5 @@
--- CALYX BUNDLE GENERATED: Wed Feb 11 00:14:48 2026
+-- CALYX BUNDLE GENERATED: Wed Feb 11 17:26:34 2026
+-- PRODUCTION HARDENED: Deterministic ordering + frozen API
 local bundle = { modules = {}, loaded = {} }
 
 local function load_module(name)
@@ -11,775 +12,246 @@ local function load_module(name)
     return bundle.loaded[name]
 end
 
-bundle.modules['data_handlers'] = "-- data_handlers.lua (ALBEO Layer)\
-\
--- Assume the FSM library is available to access its ASYNC constant\
-local machine = require(\"calyx_fsm_objc\")\
-\
-local handlers = {}\
-\
--- Utility to simulate time-consuming operations\
-local function simulate_work(duration_sec, message)\
-	local start_time = os.time()\
-	while os.time() < start_time + duration_sec do\
-		-- Busy wait simulation (In a real system, this would be non-blocking I/O)\
-	end\
-	print(string.format(\"[ALBEO] Work Complete: %s (Duration: %d sec)\", message, duration_sec))\
-end\
-\
--- ------------------------------------------------------------------\
--- Handlers for the File Ingestion Pipeline\
--- ------------------------------------------------------------------\
-\
--- onleaveIDLE handler\
-function handlers.load_file(ctx)\
-	print(string.format(\"[ALBEO] Loading file: %s\", ctx.data.file_path))\
-	-- Simulate 2 seconds of loading time\
-	simulate_work(2, \"File read complete\")\
-\
-	-- If we were truly async, we would start the I/O and return ASYNC immediately.\
-	-- For this synchronous demonstration of the FSM structure:\
-	return machine.ASYNC -- Tell the FSM to wait for an external transition call\
-end\
-\
--- onleaveLOADING handler\
-function handlers.validate_data(ctx)\
-	print(string.format(\"[ALBEO] Validating data for user: %s\", ctx.options.user_id))\
-	-- Simulate 1 second of validation\
-	simulate_work(1, \"Data validation passed\")\
-	return machine.ASYNC\
-end\
-\
--- onleaveVALIDATING handler\
-function handlers.transform_data(ctx)\
-	print(string.format(\"[ALBEO] Transforming data with mode: %s\", ctx.data.transform_mode))\
-	-- Simulate 3 seconds of heavy computation\
-	simulate_work(3, \"Data transformation complete\")\
-	return machine.ASYNC\
-end\
-\
--- onleaveTRANSFORMING handler\
-function handlers.save_results(ctx)\
-	print(string.format(\"[ALBEO] Saving results to DB: %s\", ctx.options.db_endpoint))\
-	-- Simulate 1 second of saving\
-	simulate_work(1, \"Database save acknowledged\")\
-	return machine.ASYNC\
-end\
-\
--- onenterCLEANUP handler (Synchronous cleanup)\
-function handlers.cleanup(ctx)\
-	print(string.format(\"[ALBEO] FINAL: Clearing temp files for %s.\", ctx.data.file_path))\
-	-- Cleanup returns nil (or anything not ASYNC), so the transition completes synchronously\
-	return nil\
-end\
-\
-return handlers\
-"
-bundle.modules['calyx_fsm_mailbox'] = "-- ============================================================================\
--- calyx_fsm_mailbox.lua\
--- CALYX FSM with Objective-C Style + Asynchronous Mailbox Queues\
--- Multiple FSMs communicate via message passing (Actor Model)\
--- ✅ FIXED: Context nil-safety guards at capture points\
--- ✅ FIXED: Queue size limits and memory management\
--- ✅ FIXED: No-retry for invalid transitions + automatic cleanup\
+bundle.modules['lua-fsm-objC.abi'] = "-- ============================================================================\
+-- calyx/fsm/abi.lua\
+-- CALYX FSM ABI Constants\
+-- Shared state definitions, error types, and lifecycle markers\
+-- Lua 5.1.5 Compatible\
+-- PRODUCTION HARDENED: Deterministic clock + standardized Result format\
 -- ============================================================================\
 \
-local machine = {}\
-machine.__index = machine\
+local ABI = {}\
 \
-local STATES = {\
+-- ============================================================================\
+-- DETERMINISTIC CLOCK\
+-- ============================================================================\
+\
+ABI.clock = {\
+	tick = 0,\
+	real_clock = os.date, -- Injected for testing\
+}\
+\
+function ABI.clock:advance()\
+	self.tick = self.tick + 1\
+	return self.tick\
+end\
+\
+function ABI.clock:now()\
+	return self.tick\
+end\
+\
+function ABI.clock:reset(start_tick)\
+	self.tick = start_tick or 0\
+end\
+\
+function ABI.clock:real_timestamp(format)\
+	format = format or \"%H:%M:%S\"\
+	return self.real_clock(format)\
+end\
+\
+-- ============================================================================\
+-- STATE CONSTANTS\
+-- ============================================================================\
+\
+ABI.STATES = {\
+	-- Core state markers\
 	NONE = \"none\",\
 	ASYNC = \"async\",\
+\
+	-- Transition phase suffixes\
 	SUFFIXES = {\
 		LEAVE_WAIT = \"_LEAVE_WAIT\",\
 		ENTER_WAIT = \"_ENTER_WAIT\",\
 	},\
+\
+	-- Lifecycle states\
+	INIT = \"init\",\
+	IDLE = \"idle\",\
+	RUNNING = \"running\",\
+	PAUSED = \"paused\",\
+	STOPPED = \"stopped\",\
+	ERROR = \"error\",\
+	FINAL = \"final\",\
 }\
 \
 -- ============================================================================\
--- MAILBOX QUEUE SYSTEM (WITH LIMITS)\
+-- ERROR CATEGORIES\
 -- ============================================================================\
 \
-local Mailbox = {}\
-Mailbox.__index = Mailbox\
+ABI.ERRORS = {\
+	-- Transition errors\
+	INVALID_TRANSITION = \"invalid_transition\",\
+	TRANSITION_IN_PROGRESS = \"transition_in_progress\",\
+	CANCELLED_BEFORE = \"cancelled_before\",\
+	CANCELLED_LEAVE = \"cancelled_leave\",\
+	INVALID_STAGE = \"invalid_stage\",\
 \
-function Mailbox.new(max_size)\
-	return setmetatable({\
-		queue = {},\
-		processing = false,\
-		max_size = max_size or 1000, -- Default limit: 1000 messages\
-		dropped_count = 0,\
-		total_processed = 0,\
-		total_failed = 0,\
-	}, Mailbox)\
-end\
+	-- Context errors\
+	NO_CONTEXT = \"no_context\",\
+	CONTEXT_LOST = \"context_lost\",\
+	NO_ACTIVE_TRANSITION = \"no_active_transition\",\
 \
-function Mailbox:enqueue(message)\
-	-- Check queue limits\
-	if #self.queue >= self.max_size then\
-		self.dropped_count = self.dropped_count + 1\
+	-- Mailbox errors\
+	NO_MAILBOX = \"no_mailbox\",\
+	QUEUE_FULL = \"queue_full\",\
+	ALREADY_PROCESSING = \"already_processing\",\
 \
-		-- Log only every 100th dropped message to avoid spam\
-		if self.dropped_count % 100 == 1 then\
-			print(\
-				string.format(\
-					\"[MAILBOX] Queue full (%d/%d), dropping message #%d (event=%s)\",\
-					#self.queue,\
-					self.max_size,\
-					self.dropped_count,\
-					tostring(message.event)\
-				)\
-			)\
-		end\
-		return false, \"queue_full\"\
+	-- Validation errors\
+	INVALID_EVENT_NAME = \"invalid_event_name\",\
+	EVENT_COLLISION = \"event_collision\",\
+	MISSING_EVENT = \"missing_event\",\
+	MISSING_TARGET = \"missing_target\",\
+\
+	-- Resource errors\
+	NO_MEMORY = \"no_memory\",\
+	GC_FAILED = \"gc_failed\",\
+}\
+\
+-- ============================================================================\
+-- EVENT VALIDATION PATTERNS\
+-- ============================================================================\
+\
+ABI.PATTERNS = {\
+	-- Event name must start with letter/underscore, then letters/numbers/_.-\
+	EVENT_NAME = \"^[%a_][%w_%.%-]*$\",\
+\
+	-- State name validation (similar constraints)\
+	STATE_NAME = \"^[%a_][%w_%.%-]*$\",\
+\
+	-- Callback name pattern (onbefore*, onleave*, onenter*, onafter*)\
+	CALLBACK = \"^on(before|leave|enter|after)[%a_][%w_%.%-]*$\",\
+}\
+\
+-- ============================================================================\
+-- RESERVED NAMES\
+-- ============================================================================\
+\
+ABI.RESERVED = {\
+	-- Core methods\
+	\"send\",\
+	\"resume\",\
+	\"current\",\
+	\"_context\",\
+	\"mailbox\",\
+	\"process_mailbox\",\
+	\"clear_mailbox\",\
+	\"force_gc_cleanup\",\
+	\"mailbox_stats\",\
+	\"set_mailbox_size\",\
+	\"can\",\
+	\"is\",\
+	\"asyncState\",\
+	\"events\",\
+	\"currentTransitioningEvent\",\
+	\"_complete\",\
+	\"name\",\
+\
+	-- Lifecycle callbacks\
+	\"onbefore\",\
+	\"onleave\",\
+	\"onenter\",\
+	\"onafter\",\
+	\"onstatechange\",\
+\
+	-- Internal\
+	\"__index\",\
+	\"__newindex\",\
+	\"__metatable\",\
+}\
+\
+-- ============================================================================\
+-- METADATA\
+-- ============================================================================\
+\
+ABI.VERSION = \"0.4.0\"\
+ABI.NAME = \"calyx-fsm\"\
+ABI.SPEC = \"CALYX Finite State Machine Specification v1\"\
+\
+-- ============================================================================\
+-- UTILITY: Safe string conversion for error messages\
+-- ============================================================================\
+\
+function ABI.safe_tostring(value)\
+	local success, result = pcall(tostring, value)\
+	if success then\
+		return result\
 	end\
-\
-	table.insert(self.queue, message)\
-\
-	-- Safely log FSM names even when to_fsm is a table object\
-	local to_name = message.to_fsm\
-	if type(to_name) == \"table\" and to_name.name then\
-		to_name = to_name.name\
-	elseif type(to_name) ~= \"string\" then\
-		to_name = \"self\"\
-	end\
-\
-	local from_name = message.from_fsm or \"external\"\
-\
-	print(\
-		string.format(\
-			\"[MAILBOX] Enqueued message: event=%s from=%s to=%s (queue=%d/%d)\",\
-			tostring(message.event),\
-			tostring(from_name),\
-			tostring(to_name),\
-			#self.queue,\
-			self.max_size\
-		)\
-	)\
-\
-	return true\
+	return \"[UNPRINTABLE]\"\
 end\
 \
-function Mailbox:dequeue()\
-	if #self.queue > 0 then\
-		return table.remove(self.queue, 1)\
-	end\
-	return nil\
-end\
+-- ============================================================================\
+-- STANDARDIZED RESULT FORMAT\
+-- All operations return Result tables (never multi-return for errors)\
+-- ============================================================================\
 \
-function Mailbox:has_messages()\
-	return #self.queue > 0\
-end\
-\
-function Mailbox:count()\
-	return #self.queue\
-end\
-\
-function Mailbox:clear(only_non_retained)\
-	if only_non_retained then\
-		local before_count = #self.queue\
-		for i = #self.queue, 1, -1 do\
-			if not self.queue[i]._retention_marker then\
-				table.remove(self.queue, i)\
-			end\
-		end\
-		local cleared = before_count - #self.queue\
-		print(string.format(\"[MAILBOX] Cleared %d non-retained messages (%d retained)\", cleared, #self.queue))\
-		return cleared\
-	else\
-		local cleared = #self.queue\
-		self.queue = {}\
-		self.dropped_count = 0\
-		print(string.format(\"[MAILBOX] Cleared all %d messages\", cleared))\
-		return cleared\
-	end\
-end\
-\
-function Mailbox:set_max_size(new_size)\
-	self.max_size = new_size or 1000\
-\
-	-- Truncate if new size is smaller than current queue\
-	if #self.queue > self.max_size then\
-		local excess = #self.queue - self.max_size\
-		for i = 1, excess do\
-			table.remove(self.queue, self.max_size + 1)\
-		end\
-		print(string.format(\"[MAILBOX] Truncated queue from %d to %d messages\", #self.queue + excess, #self.queue))\
-	end\
-end\
-\
-function Mailbox:get_stats()\
+function ABI.error_result(error_code, message, details)\
 	return {\
-		queued = #self.queue,\
-		max_size = self.max_size,\
-		dropped = self.dropped_count,\
-		processing = self.processing,\
-		free_slots = self.max_size - #self.queue,\
-		total_processed = self.total_processed,\
-		total_failed = self.total_failed,\
-	}\
-end\
-\
--- ============================================================================\
--- UTILITIES\
--- ============================================================================\
-\
-local function timestamp()\
-	return os.date(\"%H:%M:%S\")\
-end\
-\
-local function success(data)\
-	return true, {\
-		ok = true,\
-		data = data,\
-		timestamp = timestamp(),\
-	}\
-end\
-\
-local function failure(error_type, details)\
-	return false, {\
 		ok = false,\
-		error_type = error_type,\
-		details = details,\
-		timestamp = timestamp(),\
+		code = error_code,\
+		message = message or error_code,\
+		details = details or {},\
+		tick = ABI.clock:now(),\
+		-- trace omitted by default (add via debug mode)\
 	}\
 end\
 \
-local function log_trace(label, ctx, fsm_name)\
-	local parts = {}\
-	if fsm_name then\
-		table.insert(parts, string.format(\"fsm=%s\", fsm_name))\
-	end\
-	table.insert(parts, string.format(\"event=%s\", ctx.event or \"?\"))\
-	table.insert(parts, string.format(\"from=%s\", ctx.from or \"?\"))\
-	table.insert(parts, string.format(\"to=%s\", ctx.to or \"?\"))\
-\
-	if ctx.data then\
-		for k, v in pairs(ctx.data) do\
-			table.insert(parts, string.format(\"data.%s=%s\", k, tostring(v)))\
-		end\
-	end\
-\
-	if ctx.options then\
-		for k, v in pairs(ctx.options) do\
-			table.insert(parts, string.format(\"options.%s=%s\", k, tostring(v)))\
-		end\
-	end\
-\
-	print(string.format(\"[TRACE %s] %s\", label, table.concat(parts, \" \")))\
-end\
-\
--- ============================================================================\
--- TRANSITION HANDLERS\
--- ============================================================================\
-\
-local function handle_initial(self, p)\
-	local can, target = self:can(p.event)\
-	if not can then\
-		return failure(\"invalid_transition\", p.event)\
-	end\
-\
-	local context = {\
-		event = p.event,\
-		from = self.current,\
-		to = target,\
-		data = p.data or {},\
-		options = p.options or {},\
+function ABI.success_result(data)\
+	return {\
+		ok = true,\
+		data = data or {},\
+		tick = ABI.clock:now(),\
 	}\
-\
-	self._context = context\
-	self.currentTransitioningEvent = p.event\
-	self.asyncState = p.event .. STATES.SUFFIXES.LEAVE_WAIT\
-\
-	log_trace(\"BEFORE\", context, self.name)\
-\
-	local before_cb = self[\"onbefore\" .. p.event]\
-	if before_cb and before_cb(context) == false then\
-		return failure(\"cancelled_before\", p.event)\
-	end\
-\
-	local leave_cb = self[\"onleave\" .. self.current]\
-	local leave_result = nil\
-	if leave_cb then\
-		leave_result = leave_cb(context)\
-	end\
-\
-	if leave_result == false then\
-		return failure(\"cancelled_leave\", p.event)\
-	end\
-\
-	if leave_result ~= STATES.ASYNC then\
-		return self:_complete(context)\
-	end\
-\
-	return true\
-end\
-\
-local function handle_leave_wait(self, ctx)\
-	self.current = ctx.to\
-	self.asyncState = ctx.event .. STATES.SUFFIXES.ENTER_WAIT\
-\
-	log_trace(\"ENTER\", ctx, self.name)\
-\
-	local enter_cb = self[\"onenter\" .. ctx.to] or self[\"on\" .. ctx.to]\
-	local enter_result = nil\
-	if enter_cb then\
-		enter_result = enter_cb(ctx)\
-	end\
-\
-	if enter_result ~= STATES.ASYNC then\
-		return self:_complete(ctx)\
-	end\
-\
-	return true\
-end\
-\
-local function handle_enter_wait(self, ctx)\
-	log_trace(\"AFTER\", ctx, self.name)\
-\
-	local after_cb = self[\"onafter\" .. ctx.event] or self[\"on\" .. ctx.event]\
-	if after_cb then\
-		after_cb(ctx)\
-	end\
-\
-	if self.onstatechange then\
-		self.onstatechange(ctx)\
-	end\
-\
-	self.asyncState = STATES.NONE\
-	self.currentTransitioningEvent = nil\
-	self._context = nil\
-\
-	return success(ctx)\
-end\
-\
-local HANDLERS = {\
-	initial = handle_initial,\
-	LEAVE_WAIT = handle_leave_wait,\
-	ENTER_WAIT = handle_enter_wait,\
-}\
-\
--- ============================================================================\
--- CORE TRANSITION ENGINE\
--- ============================================================================\
-\
-function machine:_complete(ctx)\
-	-- ✅ CRITICAL FIX: Ensure ctx is never nil at capture point\
-	-- This prevents \"attempt to index local 'ctx' (a nil value)\" crashes\
-	if not ctx then\
-		-- Try to recover from self._context first\
-		ctx = self._context\
-	end\
-\
-	if not ctx then\
-		-- Last resort: create synthetic context\
-		ctx = {\
-			event = self.currentTransitioningEvent or \"unknown\",\
-			from = self.current,\
-			to = self.current, -- Stay in same state\
-			data = {},\
-			options = {},\
-			synthetic = true,\
-			injected_at = \"_complete\",\
-			timestamp = timestamp(),\
-		}\
-		self._context = ctx\
-		print(string.format(\"[SEMANTIC GUARD] Injected synthetic context for %s at _complete\", self.name))\
-	end\
-\
-	local stage = \"initial\"\
-	if self.asyncState and self.asyncState ~= STATES.NONE then\
-		local suffix = self.asyncState:match(\"_(.+)$\")\
-		if suffix then\
-			stage = suffix\
-		end\
-	end\
-\
-	local handler = HANDLERS[stage]\
-	if not handler then\
-		return failure(\"invalid_stage\", stage)\
-	end\
-\
-	return handler(self, ctx)\
 end\
 \
 -- ============================================================================\
--- MAILBOX METHODS (WITH STATE VALIDATION & NO-RETRY)\
+-- LEGACY COMPATIBILITY (DEPRECATED)\
+-- Old multi-return format - will be removed in 1.0\
 -- ============================================================================\
 \
-function machine:send(event, params)\
-	params = params or {}\
-\
-	-- Validate target FSM state if sending to self\
-	if not params.to_fsm or params.to_fsm == self then\
-		local can, _ = self:can(event)\
-		if not can then\
-			local warning =\
-				string.format(\"[WARNING] Event '%s' not valid from state '%s' (no retry)\", event, self.current)\
-			print(warning)\
-			-- Mark as no_retry to prevent retry loops for invalid transitions\
-			params.no_retry = true\
-			return false, \"invalid_transition_for_current_state\"\
-		end\
+function ABI.error_response(error_type, details)\
+	-- Log deprecation warning once\
+	if not ABI._warned_multi_return then\
+		print(\"[DEPRECATED] error_response uses multi-return. Use error_result instead.\")\
+		ABI._warned_multi_return = true\
 	end\
 \
-	local message = {\
-		event = event,\
-		data = params.data or {},\
-		options = params.options or {},\
-		from_fsm = self.name,\
-		to_fsm = params.to_fsm,\
-		timestamp = timestamp(),\
-		_retention_marker = params.retain or false, -- Optional: mark for retention\
-		no_retry = params.no_retry or false, -- Prevent retry loops\
-	}\
-\
-	local target_fsm = params.to_fsm or self\
-\
-	if target_fsm.mailbox then\
-		local ok, err = target_fsm.mailbox:enqueue(message)\
-		if not ok then\
-			return false, err\
-		end\
-	else\
-		print(string.format(\"[ERROR] Target FSM has no mailbox: %s\", target_fsm.name or \"unknown\"))\
-		return false, \"no_mailbox\"\
-	end\
-\
-	return true\
+	return false, ABI.error_result(error_type, nil, details)\
 end\
 \
-function machine:process_mailbox()\
-	if not self.mailbox then\
-		return failure(\"no_mailbox\", \"FSM has no mailbox\")\
-	end\
-	if self.mailbox.processing then\
-		return failure(\"already_processing\", \"Mailbox is being processed\")\
-	end\
-\
-	self.mailbox.processing = true\
-	local processed = 0\
-	local failed = 0\
-\
-	print(string.format(\"\\n[%s] Processing mailbox for %s (%d messages)\", timestamp(), self.name, self.mailbox:count()))\
-\
-	-- Process all current messages (snapshot the queue at start)\
-	local messages_to_process = {}\
-	while self.mailbox:has_messages() do\
-		table.insert(messages_to_process, self.mailbox:dequeue())\
-	end\
-\
-	for _, message in ipairs(messages_to_process) do\
-		print(\
-			string.format(\
-				\"[%s] Processing message: %s from %s\",\
-				timestamp(),\
-				message.event,\
-				message.from_fsm or \"external\"\
-			)\
-		)\
-\
-		if self[message.event] then\
-			local ok, result = self[message.event](self, {\
-				data = message.data,\
-				options = message.options,\
-			})\
-			if not ok then\
-				failed = failed + 1\
-				self.mailbox.total_failed = self.mailbox.total_failed + 1\
-\
-				-- Only retry if not marked as no_retry AND retry count < 3\
-				if not message.no_retry and (message.retry_count or 0) < 3 then\
-					message.retry_count = (message.retry_count or 0) + 1\
-					print(string.format(\"[RETRY] Requeuing failed message (attempt %d)\", message.retry_count))\
-					self.mailbox:enqueue(message)\
-				else\
-					if message.no_retry then\
-						print(\"[DROP] No-retry flag set, dropping message\")\
-					else\
-						print(\"[DROP] Max retries exceeded, dropping message\")\
-					end\
-				end\
-			else\
-				processed = processed + 1\
-				self.mailbox.total_processed = self.mailbox.total_processed + 1\
-			end\
-		else\
-			failed = failed + 1\
-			self.mailbox.total_failed = self.mailbox.total_failed + 1\
-			print(string.format(\"[ERROR] Unknown event: %s (no retry)\", message.event))\
-			-- Unknown events get no_retry automatically\
-		end\
-	end\
-\
-	-- AUTOMATIC CLEANUP: Clear non-retained processed messages\
-	local before_cleanup = #self.mailbox.queue\
-	self.mailbox:clear(true) -- true = only_non_retained\
-	local cleared = before_cleanup - #self.mailbox.queue\
-\
-	if cleared > 0 then\
-		print(string.format(\"[CLEANUP] Automatically cleared %d processed messages\", cleared))\
-	end\
-\
-	self.mailbox.processing = false\
-	print(\
-		string.format(\
-			\"[%s] Mailbox processing complete: %d processed, %d failed, %d retained\",\
-			timestamp(),\
-			processed,\
-			failed,\
-			self.mailbox:count()\
-		)\
-	)\
-\
-	return success({\
-		processed = processed,\
-		failed = failed,\
-		retained = self.mailbox:count(),\
-		cleared = cleared,\
-		stats = self.mailbox:get_stats(),\
-	})\
+function ABI.success_response(data)\
+	return true, ABI.success_result(data)\
 end\
 \
-function machine:clear_mailbox(retain_marked)\
-	if not self.mailbox then\
-		return false, \"no_mailbox\"\
-	end\
-\
-	return self.mailbox:clear(not retain_marked)\
-end\
-\
--- ============================================================================\
--- PUBLIC API\
--- ============================================================================\
-\
-function machine.create(opts)\
-	assert(opts and opts.events, \"events required\")\
-\
-	-- Validate each event\
-	for i, ev in ipairs(opts.events) do\
-		assert(type(ev.name) == \"string\", string.format(\"event[%d].name must be string, got %s\", i, type(ev.name)))\
-		assert(ev.to ~= nil, string.format(\"event[%d].to is required\", i))\
-		-- 'from' can be nil, string, or table\
-		if ev.from ~= nil then\
-			local from_type = type(ev.from)\
-			assert(\
-				from_type == \"string\" or from_type == \"table\",\
-				string.format(\"event[%d].from must be string or table, got %s\", i, from_type)\
-			)\
-		end\
-	end\
-\
-	local fsm = {\
-		name = opts.name or \"unnamed_fsm\",\
-		current = opts.initial or \"none\",\
-		asyncState = STATES.NONE,\
-		events = {},\
-		currentTransitioningEvent = nil,\
-		_context = nil,\
-		mailbox = Mailbox.new(opts.mailbox_size), -- Optional size limit\
-	}\
-\
-	setmetatable(fsm, machine)\
-\
-	for _, ev in ipairs(opts.events) do\
-		fsm.events[ev.name] = { map = {} }\
-		local targets = type(ev.from) == \"table\" and ev.from or { ev.from }\
-		for _, st in ipairs(targets) do\
-			fsm.events[ev.name].map[st] = ev.to\
-		end\
-\
-		fsm[ev.name] = function(self, params)\
-			params = params or {}\
-\
-			-- Check for conflicting transition\
-			if self.asyncState ~= STATES.NONE and not self.asyncState:find(ev.name) then\
-				return failure(\"transition_in_progress\", self.currentTransitioningEvent)\
-			end\
-\
-			-- ✅ FIX: If resuming, guard against nil context\
-			if self.asyncState ~= STATES.NONE and self.asyncState:find(ev.name) then\
-				if not self._context then\
-					print(\
-						string.format(\
-							\"[SEMANTIC ERROR] Context lost during resume of %s, clearing stale async state\",\
-							ev.name\
-						)\
-					)\
-					-- Clear stale async state and start fresh\
-					self.asyncState = STATES.NONE\
-					self.currentTransitioningEvent = nil\
-					-- Fall through to start new transition\
-				else\
-					-- Valid resume path\
-					return self:_complete(self._context)\
-				end\
-			end\
-\
-			-- Start new transition\
-			local p = {\
-				event = ev.name,\
-				data = params.data or {},\
-				options = params.options or {},\
-			}\
-\
-			return handle_initial(self, p)\
-		end\
-	end\
-\
-	for k, v in pairs(opts.callbacks or {}) do\
-		fsm[k] = v\
-	end\
-\
-	return fsm\
-end\
-\
-function machine:resume()\
-	if self.asyncState == STATES.NONE then\
-		return failure(\"no_active_transition\", \"resume\")\
-	end\
-	if not self._context then\
-		return failure(\"no_context\", \"context lost\")\
-	end\
-	return self:_complete(self._context)\
-end\
-\
-function machine:can(event)\
-	local ev = self.events[event]\
-	if not ev then\
-		return false\
-	end\
-	local target = ev.map[self.current] or ev.map[\"*\"]\
-	return target ~= nil, target\
-end\
-\
-function machine:is(state)\
-	return self.current == state\
-end\
-\
--- New methods for memory management\
-function machine:mailbox_stats()\
-	if not self.mailbox then\
-		return nil\
-	end\
-	return self.mailbox:get_stats()\
-end\
-\
-function machine:set_mailbox_size(new_size)\
-	if not self.mailbox then\
-		return false, \"no_mailbox\"\
-	end\
-	self.mailbox:set_max_size(new_size)\
-	return true\
-end\
-\
-function machine:force_gc_cleanup()\
-	-- Force cleanup and return memory stats\
-	if not self.mailbox then\
-		return false, \"no_mailbox\"\
-	end\
-\
-	local before_count = #self.mailbox.queue\
-	local before_mem = collectgarbage(\"count\")\
-\
-	-- Clear all non-retained messages\
-	self.mailbox:clear(true)\
-\
-	-- Force garbage collection\
-	collectgarbage(\"collect\")\
-\
-	local after_mem = collectgarbage(\"count\")\
-\
-	return true,\
-		{\
-			cleared = before_count - #self.mailbox.queue,\
-			memory_reclaimed_kb = before_mem - after_mem,\
-			retained = #self.mailbox.queue,\
-			current_memory_kb = after_mem,\
-		}\
-end\
-\
-machine.NONE = STATES.NONE\
-machine.ASYNC = STATES.ASYNC\
-\
-return machine\
+return ABI\
 "
-bundle.modules['calyx_fsm_objc'] = "-- ============================================================================\
--- calyx_fsm_objc.lua\
--- CALYX FSM with Objective-C-style Named Parameters\
--- FIXED: Proper context persistence for async resume\
+bundle.modules['lua-fsm-objC.utils'] = "-- ============================================================================\
+-- calyx/fsm/utils.lua\
+-- CALYX FSM Shared Utilities\
+-- Formatters, helpers, and diagnostic tools\
+-- Lua 5.1.5 Compatible\
 -- ============================================================================\
 \
-local machine = {}\
-machine.__index = machine\
+local ABI = require(\"abi\")\
 \
-local STATES = {\
-	NONE = \"none\",\
-	ASYNC = \"async\",\
-	SUFFIXES = {\
-		LEAVE_WAIT = \"_LEAVE_WAIT\",\
-		ENTER_WAIT = \"_ENTER_WAIT\",\
-	},\
-}\
+local Utils = {}\
 \
--- ============== UTILITIES ==============\
+-- ============================================================================\
+-- OBJECTIVE-C STYLE CALL FORMATTER\
+-- ============================================================================\
 \
-local function timestamp()\
-	return os.date(\"%Y-%m-%d %H:%M:%S\")\
-end\
-\
-local function success(data)\
-	return true, {\
-		ok = true,\
-		data = data,\
-		timestamp = timestamp(),\
-	}\
-end\
-\
-local function failure(error_type, details)\
-	return false, {\
-		ok = false,\
-		error_type = error_type,\
-		details = details,\
-		timestamp = timestamp(),\
-	}\
-end\
-\
-local function log_trace(label, ctx)\
-	local parts = {}\
-	table.insert(parts, string.format(\"event=%s\", ctx.event or \"?\"))\
-	table.insert(parts, string.format(\"from=%s\", ctx.from or \"?\"))\
-	table.insert(parts, string.format(\"to=%s\", ctx.to or \"?\"))\
-\
-	-- Log data fields\
-	if ctx.data then\
-		for k, v in pairs(ctx.data) do\
-			table.insert(parts, string.format(\"data.%s=%s\", k, tostring(v)))\
-		end\
-	end\
-\
-	-- Log options fields\
-	if ctx.options then\
-		for k, v in pairs(ctx.options) do\
-			table.insert(parts, string.format(\"options.%s=%s\", k, tostring(v)))\
-		end\
-	end\
-\
-	print(string.format(\"[TRACE %s] %s\", label, table.concat(parts, \" \")))\
-end\
-\
-local function objc_call(method, params)\
+function Utils.format_objc_call(method, params)\
+	params = params or {}\
 	local parts = {}\
 \
 	if params.data then\
 		for k, v in pairs(params.data) do\
-			table.insert(parts, string.format(\"data.%s:%s\", k, tostring(v)))\
+			table.insert(parts, string.format(\"data.%s:%s\", k, ABI.safe_tostring(v)))\
 		end\
 	end\
 \
 	if params.options then\
 		for k, v in pairs(params.options) do\
-			table.insert(parts, string.format(\"options.%s:%s\", k, tostring(v)))\
+			table.insert(parts, string.format(\"options.%s:%s\", k, ABI.safe_tostring(v)))\
 		end\
 	end\
 \
@@ -790,385 +262,1393 @@ local function objc_call(method, params)\
 	end\
 end\
 \
--- ============== TRANSITION HANDLERS ==============\
+-- ============================================================================\
+-- JSON-LIKE SERIALIZER (FOR DEBUGGING)\
+-- ============================================================================\
 \
-local function handle_initial(self, p)\
-	local can, target = self:can(p.event)\
-	if not can then\
-		return failure(\"invalid_transition\", p.event)\
+function Utils.serialize_table(tbl, indent)\
+	indent = indent or 0\
+	local parts = {}\
+	local prefix = string.rep(\"  \", indent)\
+\
+	if type(tbl) ~= \"table\" then\
+		return ABI.safe_tostring(tbl)\
 	end\
 \
-	-- Create full context with ALL parameters\
-	local context = {\
-		event = p.event,\
-		from = self.current,\
-		to = target,\
-		data = p.data or {},\
-		options = p.options or {},\
-	}\
+	table.insert(parts, \"{\")\
 \
-	-- CRITICAL: Store context for async resume\
-	self._context = context\
-	self.currentTransitioningEvent = p.event\
-	self.asyncState = p.event .. STATES.SUFFIXES.LEAVE_WAIT\
+	for k, v in pairs(tbl) do\
+		local key_str\
+		if type(k) == \"string\" then\
+			key_str = string.format(\"%q\", k)\
+		else\
+			key_str = tostring(k)\
+		end\
 \
-	log_trace(\"BEFORE\", context)\
-\
-	-- Call before handler\
-	local before_cb = self[\"onbefore\" .. p.event]\
-	if before_cb and before_cb(context) == false then\
-		return failure(\"cancelled_before\", p.event)\
-	end\
-\
-	-- Call leave handler\
-	local leave_cb = self[\"onleave\" .. self.current]\
-	local leave_result = nil\
-	if leave_cb then\
-		leave_result = leave_cb(context)\
-	end\
-\
-	if leave_result == false then\
-		return failure(\"cancelled_leave\", p.event)\
-	end\
-\
-	-- Check if async\
-	if leave_result ~= STATES.ASYNC then\
-		return self:_complete(context)\
-	end\
-\
-	return true\
-end\
-\
-local function handle_leave_wait(self, ctx)\
-	self.current = ctx.to\
-	self.asyncState = ctx.event .. STATES.SUFFIXES.ENTER_WAIT\
-\
-	log_trace(\"ENTER\", ctx)\
-\
-	-- Call enter handler\
-	local enter_cb = self[\"onenter\" .. ctx.to] or self[\"on\" .. ctx.to]\
-	local enter_result = nil\
-	if enter_cb then\
-		enter_result = enter_cb(ctx)\
-	end\
-\
-	-- Check if async\
-	if enter_result ~= STATES.ASYNC then\
-		return self:_complete(ctx)\
-	end\
-\
-	return true\
-end\
-\
-local function handle_enter_wait(self, ctx)\
-	log_trace(\"AFTER\", ctx)\
-\
-	-- Call after handlers\
-	local after_cb = self[\"onafter\" .. ctx.event] or self[\"on\" .. ctx.event]\
-	if after_cb then\
-		after_cb(ctx)\
-	end\
-\
-	if self.onstatechange then\
-		self.onstatechange(ctx)\
-	end\
-\
-	-- Cleanup\
-	self.asyncState = STATES.NONE\
-	self.currentTransitioningEvent = nil\
-	self._context = nil\
-\
-	return success(ctx)\
-end\
-\
-local HANDLERS = {\
-	initial = handle_initial,\
-	LEAVE_WAIT = handle_leave_wait,\
-	ENTER_WAIT = handle_enter_wait,\
-}\
-\
--- ============== CORE TRANSITION ENGINE ==============\
-\
-function machine:_complete(ctx)\
-	local stage = \"initial\"\
-\
-	if self.asyncState and self.asyncState ~= STATES.NONE then\
-		local suffix = self.asyncState:match(\"_(.+)$\")\
-		if suffix then\
-			stage = suffix\
+		if type(v) == \"table\" then\
+			table.insert(parts, string.format(\"%s  %s: %s\", prefix, key_str, Utils.serialize_table(v, indent + 1)))\
+		else\
+			table.insert(parts, string.format(\"%s  %s: %s\", prefix, key_str, ABI.safe_tostring(v)))\
 		end\
 	end\
 \
-	local handler = HANDLERS[stage]\
-	if not handler then\
-		return failure(\"invalid_stage\", stage)\
-	end\
-\
-	return handler(self, ctx)\
+	table.insert(parts, prefix .. \"}\")\
+	return table.concat(parts, \"\\n\")\
 end\
 \
--- ============== PUBLIC API ==============\
+-- ============================================================================\
+-- CONTEXT DIFF (BEFORE/AFTER TRANSITION)\
+-- ============================================================================\
 \
-function machine.create(opts)\
-	assert(opts and opts.events, \"events required\")\
+function Utils.context_diff(before_ctx, after_ctx)\
+	local changes = {}\
 \
-	local fsm = {\
-		current = opts.initial or \"none\",\
-		asyncState = STATES.NONE,\
-		events = {},\
-		currentTransitioningEvent = nil,\
-		_context = nil,\
-	}\
+	if before_ctx.from ~= after_ctx.from then\
+		table.insert(changes, string.format(\"from: %s -> %s\", before_ctx.from, after_ctx.from))\
+	end\
 \
-	setmetatable(fsm, machine)\
+	if before_ctx.to ~= after_ctx.to then\
+		table.insert(changes, string.format(\"to: %s -> %s\", before_ctx.to, after_ctx.to))\
+	end\
 \
-	-- Build event methods\
-	for _, ev in ipairs(opts.events) do\
-		fsm.events[ev.name] = { map = {} }\
+	if before_ctx.event ~= after_ctx.event then\
+		table.insert(changes, string.format(\"event: %s -> %s\", before_ctx.event, after_ctx.event))\
+	end\
 \
-		-- Build transition map\
-		local targets = type(ev.from) == \"table\" and ev.from or { ev.from }\
-		for _, st in ipairs(targets) do\
-			fsm.events[ev.name].map[st] = ev.to\
+	if #changes > 0 then\
+		return table.concat(changes, \", \")\
+	else\
+		return \"no changes\"\
+	end\
+end\
+\
+-- ============================================================================\
+-- SAFE TABLE MERGE\
+-- ============================================================================\
+\
+function Utils.merge_tables(target, source, overwrite)\
+	target = target or {}\
+	source = source or {}\
+\
+	for k, v in pairs(source) do\
+		if overwrite or target[k] == nil then\
+			if type(v) == \"table\" and type(target[k]) == \"table\" then\
+				target[k] = Utils.merge_tables(target[k], v, overwrite)\
+			else\
+				target[k] = v\
+			end\
 		end\
+	end\
 \
-		-- Create event method (Objective-C style)\
-		fsm[ev.name] = function(self, params)\
-			params = params or {}\
+	return target\
+end\
 \
-			local call_str = objc_call(ev.name, params)\
-			print(\"[CALL] \" .. call_str)\
+-- ============================================================================\
+-- RANDOM ID GENERATOR (Lua 5.1.5 compatible)\
+-- ============================================================================\
 \
-			-- Check for conflicting transition\
-			if self.asyncState ~= STATES.NONE and not self.asyncState:find(ev.name) then\
-				return failure(\"transition_in_progress\", self.currentTransitioningEvent)\
-			end\
+function Utils.generate_id(prefix, length)\
+	prefix = prefix or \"id\"\
+	length = length or 8\
 \
-			-- If in middle of THIS event, resume it\
-			if self.asyncState ~= STATES.NONE and self.asyncState:find(ev.name) then\
-				print(\"[RESUME] Continuing async transition for \" .. ev.name)\
-				return self:_complete(self._context)\
-			end\
+	local chars = \"0123456789abcdef\"\
+	local id = {}\
 \
-			-- Otherwise, start new transition\
-			local p = {\
-				event = ev.name,\
-				data = params.data or {},\
-				options = params.options or {},\
+	math.randomseed(os.time())\
+	math.random() -- Seed properly\
+\
+	for i = 1, length do\
+		local rand = math.random(1, #chars)\
+		table.insert(id, string.sub(chars, rand, rand))\
+	end\
+\
+	return string.format(\"%s_%s\", prefix, table.concat(id))\
+end\
+\
+return Utils\
+"
+bundle.modules['lua-fsm-objC.core'] = "-- ============================================================================\
+-- lua-fsm-objC.core (FIXED - Metatable protection)\
+-- ============================================================================\
+-- calyx/fsm/core.lua\
+-- CALYX FSM Core Kernel\
+-- Shared transition logic, validation, and callback dispatch\
+-- Lua 5.1.5 Compatible\
+-- ============================================================================\
+\
+local ABI = require(\"abi\")\
+\
+local Core = {}\
+Core.__index = Core\
+\
+-- ============================================================================\
+-- WARNING SYSTEM (Lua 5.1.5 compatible)\
+-- ============================================================================\
+\
+function Core.warn(message, category)\
+	category = ABI.safe_tostring(category or \"general\")\
+	message = ABI.safe_tostring(message)\
+	print(string.format(\"[WARN %s] %s\", string.upper(category), message))\
+end\
+\
+-- ============================================================================\
+-- METATABLE PROTECTION (ENHANCED)\
+-- ============================================================================\
+\
+function Core.lock_metatable(fsm, protection_tag)\
+	local mt = getmetatable(fsm)\
+	if mt then\
+		-- Prevent getmetatable/setmetatable tampering\
+		mt.__metatable = protection_tag\
+			or {\
+				protected = true,\
+				type = \"CALYX_FSM\",\
+				version = ABI.VERSION,\
+				immutable = true,\
 			}\
 \
-			return handle_initial(self, p)\
+		-- Prevent new field creation\
+		mt.__newindex = function(t, k, v)\
+			-- Whitelist of mutable fields\
+			local mutable = {\
+				current = true,\
+				asyncState = true,\
+				_context = true,\
+				currentTransitioningEvent = true,\
+			}\
+\
+			if mutable[k] then\
+				rawset(t, k, v)\
+			else\
+				-- FIX: Use consistent error message that test expects\
+				error(string.format(\"Cannot modify FSM: attempted to set field '%s'\", tostring(k)), 2)\
+			end\
 		end\
 	end\
-\
-	-- Add callbacks\
-	for k, v in pairs(opts.callbacks or {}) do\
-		fsm[k] = v\
-	end\
-\
 	return fsm\
 end\
 \
--- CRITICAL FIX: Add explicit resume() method\
-function machine:resume()\
-	if self.asyncState == STATES.NONE then\
-		return failure(\"no_active_transition\", \"resume\")\
+-- ... rest of core.lua unchanged ...\
+\
+-- ============================================================================\
+-- EVENT NAME VALIDATION\
+-- ============================================================================\
+\
+function Core.validate_event_name(name, strict_mode)\
+	if type(name) ~= \"string\" or name == \"\" then\
+		local msg = \"Event name must be a non-empty string, got: \" .. type(name)\
+		if strict_mode then\
+			error(msg, 2)\
+		else\
+			Core.warn(msg, \"validation\")\
+			return false\
+		end\
 	end\
 \
-	if not self._context then\
-		return failure(\"no_context\", \"context lost\")\
+	if not string.match(name, ABI.PATTERNS.EVENT_NAME) then\
+		local msg =\
+			string.format(\"Invalid event name format: '%s'. Must match pattern: %s\", name, ABI.PATTERNS.EVENT_NAME)\
+		if strict_mode then\
+			error(msg, 2)\
+		else\
+			Core.warn(msg, \"validation\")\
+			return false\
+		end\
 	end\
 \
-	print(string.format(\"[RESUME] Continuing transition: %s (%s)\", self.currentTransitioningEvent, self.asyncState))\
-\
-	return self:_complete(self._context)\
+	return true\
 end\
 \
-function machine:can(event)\
-	local ev = self.events[event]\
-	if not ev then\
+-- ============================================================================\
+-- STATE NAME VALIDATION\
+-- ============================================================================\
+\
+function Core.validate_state_name(name, strict_mode)\
+	if type(name) ~= \"string\" or name == \"\" then\
+		local msg = \"State name must be a non-empty string, got: \" .. type(name)\
+		if strict_mode then\
+			error(msg, 2)\
+		else\
+			Core.warn(msg, \"validation\")\
+			return false\
+		end\
+	end\
+\
+	if not string.match(name, ABI.PATTERNS.STATE_NAME) then\
+		local msg =\
+			string.format(\"Invalid state name format: '%s'. Must match pattern: %s\", name, ABI.PATTERNS.STATE_NAME)\
+		if strict_mode then\
+			error(msg, 2)\
+		else\
+			Core.warn(msg, \"validation\")\
+			return false\
+		end\
+	end\
+\
+	return true\
+end\
+\
+-- ============================================================================\
+-- EVENT COLLISION DETECTION\
+-- ============================================================================\
+\
+function Core.check_event_collision(fsm_instance, name)\
+	-- Check reserved names\
+	for i = 1, #ABI.RESERVED do\
+		if name == ABI.RESERVED[i] then\
+			error(\"Event name '\" .. name .. \"' is reserved and cannot be used\", 2)\
+		end\
+	end\
+\
+	-- Check existing methods\
+	if fsm_instance[name] and type(fsm_instance[name]) == \"function\" then\
+		Core.warn(\"Event name '\" .. name .. \"' collides with existing FSM method. Skipping creation.\", \"collision\")\
 		return false\
 	end\
-	local target = ev.map[self.current] or ev.map[\"*\"]\
-	return target ~= nil, target\
+\
+	return true\
 end\
 \
-function machine:is(state)\
-	return self.current == state\
-end\
-\
-machine.NONE = STATES.NONE\
-machine.ASYNC = STATES.ASYNC\
-\
 -- ============================================================================\
--- data_handlers.lua (ALBEO Layer)\
+-- TRANSITION MAP BUILDER\
 -- ============================================================================\
 \
-local handlers = {}\
+function Core.build_transition_map(events)\
+	local map = {}\
 \
-local function simulate_work(duration_sec, message)\
-	local start_time = os.time()\
-	while os.time() < start_time + duration_sec do\
-		-- Busy wait simulation\
+	for _, ev in ipairs(events) do\
+		-- Validate event structure\
+		assert(type(ev.name) == \"string\", \"event.name must be string\")\
+		assert(ev.to ~= nil, \"event.to is required\")\
+\
+		-- Initialize event entry\
+		map[ev.name] = {\
+			name = ev.name,\
+			to = ev.to,\
+			from_map = {},\
+		}\
+\
+		-- Process 'from' states\
+		if ev.from then\
+			local from_states = type(ev.from) == \"table\" and ev.from or { ev.from }\
+			for _, st in ipairs(from_states) do\
+				if st == \"*\" then\
+					map[ev.name].wildcard = true\
+				else\
+					map[ev.name].from_map[st] = true\
+				end\
+			end\
+		end\
+\
+		-- Wildcard support (explicit or implied)\
+		if ev.wildcard then\
+			map[ev.name].wildcard = true\
+		end\
 	end\
-	print(string.format(\"[ALBEO] Work Complete: %s (Duration: %d sec)\", message, duration_sec))\
-end\
 \
--- Handler: Load file (onleaveIDLE)\
-function handlers.load_file(ctx)\
-	print(string.format(\"[ALBEO] Loading file: %s\", ctx.data.file_path or \"unknown\"))\
-	print(\
-		string.format(\"[ALBEO] User ID: %s, Timeout: %s\", ctx.options.user_id or \"none\", ctx.options.timeout or \"none\")\
-	)\
-	simulate_work(2, \"File read complete\")\
-	return machine.ASYNC\
-end\
-\
--- Handler: Validate data (onleaveLOADING)\
-function handlers.validate_data(ctx)\
-	print(string.format(\"[ALBEO] Validating data for user: %s\", ctx.options.user_id or \"unknown\"))\
-	simulate_work(1, \"Data validation passed\")\
-	return machine.ASYNC\
-end\
-\
--- Handler: Transform data (onleaveVALIDATING)\
-function handlers.transform_data(ctx)\
-	print(string.format(\"[ALBEO] Transforming data with mode: %s\", ctx.data.transform_mode or \"default\"))\
-	simulate_work(3, \"Data transformation complete\")\
-	return machine.ASYNC\
-end\
-\
--- Handler: Save results (onleaveTRANSFORMING)\
-function handlers.save_results(ctx)\
-	print(string.format(\"[ALBEO] Saving results to DB: %s\", ctx.options.db_endpoint or \"default\"))\
-	simulate_work(1, \"Database save acknowledged\")\
-	return machine.ASYNC\
-end\
-\
--- Handler: Cleanup (onenterCLEANUP)\
-function handlers.cleanup(ctx)\
-	print(string.format(\"[ALBEO] FINAL: Clearing temp files for %s\", ctx.data.file_path or \"unknown\"))\
-	return nil -- Synchronous\
+	return map\
 end\
 \
 -- ============================================================================\
--- DEMO (IMPO Layer)\
+-- CAN TRANSITION CHECK\
 -- ============================================================================\
 \
-print(\"================================================================\")\
-print(\"CALYX FSM Objective-C Style Demo\")\
-print(\"================================================================\")\
+function Core.can_transition(transition_map, event_name, current_state)\
+	local ev = transition_map[event_name]\
+	if not ev then\
+		return false, nil\
+	end\
 \
--- Create pipeline\
-local pipeline = machine.create({\
-	initial = \"IDLE\",\
+	if ev.from_map[current_state] or ev.wildcard then\
+		return true, ev.to\
+	end\
 \
-	events = {\
-		{ name = \"startWithFile\", from = \"IDLE\", to = \"LOADING\" },\
-		{ name = \"loaded\", from = \"LOADING\", to = \"VALIDATING\" },\
-		{ name = \"validated\", from = \"VALIDATING\", to = \"TRANSFORMING\" },\
-		{ name = \"completeWithMode\", from = \"TRANSFORMING\", to = \"SAVING\" },\
-		{ name = \"savedToDB\", from = \"SAVING\", to = \"CLEANUP\" },\
-	},\
+	return false, nil\
+end\
 \
-	callbacks = {\
-		onleaveIDLE = handlers.load_file,\
-		onleaveLOADING = handlers.validate_data,\
-		onleaveVALIDATING = handlers.transform_data,\
-		onleaveTRANSFORMING = handlers.save_results,\
-		onenterCLEANUP = handlers.cleanup,\
+-- ============================================================================\
+-- CONTEXT CREATOR\
+-- ============================================================================\
 \
-		onstatechange = function(ctx)\
-			print(string.format(\"--> FSM TRANSITION: %s -> %s (Event: %s)\", ctx.from, ctx.to, ctx.event))\
-		end,\
-	},\
-})\
+function Core.create_context(event_name, from_state, to_state, data, options)\
+	return {\
+		event = event_name,\
+		from = from_state,\
+		to = to_state,\
+		data = data or {},\
+		options = options or {},\
+		tick = ABI.clock:now(),\
+	}\
+end\
 \
-print(string.format(\"\\nInitial State: %s\\n\", pipeline.current))\
+-- ============================================================================\
+-- CALLBACK DISPATCHER (PRIVATE - NOT EXPOSED IN PUBLIC API)\
+-- ============================================================================\
 \
--- Helper function to resume async transitions\
-local function resume_async()\
-	local start_time = os.date(\"%H:%M:%S\")\
-	print(string.format(\"\\n[%s] Resuming async transition...\", start_time))\
+function Core._dispatch_callback(fsm, callback_type, phase, context)\
+	-- Construct callback name (e.g., onbeforeStart, onleaveIDLE, onenterRUNNING)\
+	local callback_name\
 \
-	local ok, res = pipeline:resume()\
-\
-	local end_time = os.date(\"%H:%M:%S\")\
-	if ok then\
-		print(string.format(\"[%s] ✓ SUCCESS: New state = %s\\n\", end_time, pipeline.current))\
+	if phase == \"before\" then\
+		callback_name = \"onbefore\" .. context.event\
+	elseif phase == \"leave\" then\
+		callback_name = \"onleave\" .. context.from\
+	elseif phase == \"enter\" then\
+		callback_name = \"onenter\" .. context.to\
+	elseif phase == \"after\" then\
+		callback_name = \"onafter\" .. context.event\
 	else\
-		print(string.format(\"[%s] ✗ FAILURE: %s\\n\", end_time, res.error_type))\
+		callback_name = phase -- Direct callback name\
 	end\
 \
-	return ok\
+	local callback = fsm[callback_name]\
+	if callback then\
+		-- Always use (fsm, context) signature for consistency\
+		return callback(fsm, context)\
+	end\
+\
+	return nil\
 end\
 \
 -- ============================================================================\
--- EXECUTION SEQUENCE\
+-- FSM INSTANCE CREATOR (BASE)\
 -- ============================================================================\
 \
-print(\"--- PHASE 1: START INGESTION (startWithFile) ---\")\
-pipeline:startWithFile({\
-	data = { file_path = \"financial_report_Q4.csv\" },\
-	options = { user_id = 456, timeout = 30 },\
-})\
-print(string.format(\"Current State: %s, Async: %s\", pipeline.current, pipeline.asyncState))\
+function Core.create_base_fsm(opts)\
+	opts = opts or {}\
 \
-resume_async()\
+	-- Validate initial state\
+	if opts.initial then\
+		Core.validate_state_name(opts.initial, opts.strict_mode)\
+	end\
 \
-print(\"--- PHASE 2: LOAD COMPLETE (loaded) ---\")\
-pipeline:loaded() -- This will use STORED context from startWithFile!\
-print(string.format(\"Current State: %s, Async: %s\", pipeline.current, pipeline.asyncState))\
+	local fsm = {\
+		-- Identity\
+		name = opts.name or string.format(\"fsm_%x\", math.floor(math.random() * 0xFFFFFF)),\
 \
-resume_async()\
+		-- State\
+		current = opts.initial or ABI.STATES.IDLE,\
 \
-print(\"--- PHASE 3: VALIDATION COMPLETE (validated) ---\")\
-pipeline:validated({\
-	data = { transform_mode = \"normalization\" },\
-})\
-print(string.format(\"Current State: %s, Async: %s\", pipeline.current, pipeline.asyncState))\
+		-- Transition system\
+		transitions = Core.build_transition_map(opts.events or {}),\
 \
-resume_async()\
+		-- Callback storage\
+		callbacks = {},\
 \
-print(\"--- PHASE 4: TRANSFORMATION COMPLETE (completeWithMode) ---\")\
-pipeline:completeWithMode({\
-	options = { parallel = true },\
-})\
-print(string.format(\"Current State: %s, Async: %s\", pipeline.current, pipeline.asyncState))\
+		-- Configuration\
+		strict_mode = opts.strict_mode or false,\
+		debug = opts.debug or false,\
 \
-resume_async()\
+		-- Metadata\
+		created_at = ABI.clock:now(),\
+		version = ABI.VERSION,\
+	}\
 \
-print(\"--- PHASE 5: SAVE COMPLETE (savedToDB) ---\")\
-pipeline:savedToDB({\
-	options = { db_endpoint = \"prod-main-db\" },\
-})\
-print(string.format(\"Current State: %s, Async: %s\", pipeline.current, pipeline.asyncState))\
+	-- Apply callbacks\
+	if opts.callbacks then\
+		for k, v in pairs(opts.callbacks) do\
+			fsm[k] = v\
+		end\
+	end\
 \
-resume_async()\
+	setmetatable(fsm, Core)\
+	return fsm\
+end\
 \
-print(\"================================================================\")\
-print(string.format(\"FINAL STATE: %s\", pipeline.current))\
-print(string.format(\"Async State: %s\", pipeline.asyncState))\
-print(\"================================================================\")\
-print(\"\\n✓ Demo Complete - All Transitions Successful\")\
+-- ============================================================================\
+-- CORE TRANSITION METHOD (RETURNS RESULT TABLE)\
+-- ============================================================================\
 \
-return machine\
+function Core:_transition(event_name, data, options)\
+	-- Check if transition is valid\
+	local can, target = Core.can_transition(self.transitions, event_name, self.current)\
+	if not can then\
+		return ABI.error_result(\
+			ABI.ERRORS.INVALID_TRANSITION,\
+			string.format(\"Cannot transition from '%s' via '%s'\", self.current, event_name),\
+			{ current = self.current, event = event_name }\
+		)\
+	end\
+\
+	-- Create context\
+	local ctx = Core.create_context(event_name, self.current, target, data, options)\
+\
+	-- BEFORE callback\
+	local before_result = Core._dispatch_callback(self, \"callback\", \"before\", ctx)\
+	if before_result == false then\
+		return ABI.error_result(\
+			ABI.ERRORS.CANCELLED_BEFORE,\
+			string.format(\"Transition cancelled in onbefore%s\", event_name),\
+			{ event = event_name, context = ctx }\
+		)\
+	end\
+\
+	-- LEAVE callback\
+	local leave_result = Core._dispatch_callback(self, \"callback\", \"leave\", ctx)\
+	if leave_result == false then\
+		return ABI.error_result(\
+			ABI.ERRORS.CANCELLED_LEAVE,\
+			string.format(\"Transition cancelled in onleave%s\", ctx.from),\
+			{ event = event_name, context = ctx }\
+		)\
+	end\
+\
+	-- Store context for async continuation\
+	ctx._requires_async = leave_result == ABI.STATES.ASYNC\
+\
+	return ABI.success_result({\
+		context = ctx,\
+		target = target,\
+		is_async = leave_result == ABI.STATES.ASYNC,\
+	})\
+end\
+\
+-- ============================================================================\
+-- COMPLETE TRANSITION (RETURNS RESULT TABLE)\
+-- ============================================================================\
+\
+function Core:_complete_transition(ctx)\
+	-- Update state\
+	self.current = ctx.to\
+\
+	-- ENTER callback\
+	Core._dispatch_callback(self, \"callback\", \"enter\", ctx)\
+\
+	-- AFTER callback\
+	Core._dispatch_callback(self, \"callback\", \"after\", ctx)\
+\
+	-- State change notification\
+	if self.onstatechange then\
+		self.onstatechange(self, ctx)\
+	end\
+\
+	return ABI.success_result(ctx)\
+end\
+\
+-- ============================================================================\
+-- CAN EVENT CHECK\
+-- ============================================================================\
+\
+function Core:can(event_name)\
+	return Core.can_transition(self.transitions, event_name, self.current)\
+end\
+\
+-- ============================================================================\
+-- STATE CHECK\
+-- ============================================================================\
+\
+function Core:is(state_name)\
+	return self.current == state_name\
+end\
+\
+-- ============================================================================\
+-- EXPORT CONSTANTS (READ-ONLY)\
+-- ============================================================================\
+\
+Core.ASYNC = ABI.STATES.ASYNC\
+Core.NONE = ABI.STATES.NONE\
+Core.STATES = ABI.STATES\
+\
+-- Private API marker - DO NOT EXPOSE VIA PUBLIC CALYX API\
+Core._PRIVATE = true\
+\
+return Core\
+"
+bundle.modules['lua-fsm-objC.ringbuffer'] = "-- ============================================================================\
+-- calyx/fsm/ringbuffer.lua\
+-- CALYX Ring Buffer Mailbox\
+-- O(1) enqueue/dequeue with backpressure signaling\
+-- Lua 5.1.5 Compatible\
+-- ============================================================================\
+\
+local ABI = require(\"abi\")\
+\
+local RingBuffer = {}\
+RingBuffer.__index = RingBuffer\
+\
+-- ============================================================================\
+-- RING BUFFER IMPLEMENTATION\
+-- ============================================================================\
+\
+function RingBuffer.new(max_size, opts)\
+	opts = opts or {}\
+\
+	return setmetatable({\
+		queue = {},\
+		head = 1,\
+		tail = 1,\
+		count = 0,\
+		max_size = max_size or 1000,\
+\
+		-- Stats\
+		dropped_count = 0,\
+		total_processed = 0,\
+		total_failed = 0,\
+		total_enqueued = 0,\
+\
+		-- Backpressure policy\
+		overflow_policy = opts.overflow_policy or \"drop_newest\", -- drop_newest, drop_oldest, reject\
+\
+		-- Callbacks\
+		on_backpressure = opts.on_backpressure,\
+\
+		-- Debug mode\
+		debug = opts.debug or false,\
+	}, RingBuffer)\
+end\
+\
+-- ============================================================================\
+-- CORE OPERATIONS (O(1))\
+-- ============================================================================\
+\
+function RingBuffer:enqueue(message)\
+	-- Check capacity\
+	if self.count >= self.max_size then\
+		self.dropped_count = self.dropped_count + 1\
+\
+		if self.overflow_policy == \"reject\" then\
+			return ABI.error_result(\
+				ABI.ERRORS.QUEUE_FULL,\
+				\"Queue at capacity\",\
+				{ count = self.count, max_size = self.max_size, dropped_total = self.dropped_count }\
+			)\
+		elseif self.overflow_policy == \"drop_oldest\" then\
+			-- Dequeue oldest to make room\
+			self:dequeue()\
+			if self.debug then\
+				print(string.format(\"[MAILBOX] Dropped oldest message (policy=drop_oldest)\"))\
+			end\
+		else -- drop_newest (default)\
+			if self.debug and self.dropped_count % 100 == 1 then\
+				print(\
+					string.format(\
+						\"[MAILBOX] Queue full (%d/%d), dropping newest message #%d\",\
+						self.count,\
+						self.max_size,\
+						self.dropped_count\
+					)\
+				)\
+			end\
+\
+			-- Fire backpressure callback\
+			if self.on_backpressure then\
+				self.on_backpressure(self:get_stats())\
+			end\
+\
+			return ABI.error_result(\
+				ABI.ERRORS.QUEUE_FULL,\
+				\"Queue full, message dropped\",\
+				{ policy = \"drop_newest\", stats = self:get_stats() }\
+			)\
+		end\
+	end\
+\
+	-- Insert at tail\
+	self.queue[self.tail] = message\
+	self.tail = (self.tail % self.max_size) + 1\
+	self.count = self.count + 1\
+	self.total_enqueued = self.total_enqueued + 1\
+\
+	if self.debug then\
+		print(\
+			string.format(\
+				\"[MAILBOX] Enqueued: event=%s count=%d/%d\",\
+				ABI.safe_tostring(message.event),\
+				self.count,\
+				self.max_size\
+			)\
+		)\
+	end\
+\
+	return ABI.success_result({ count = self.count })\
+end\
+\
+function RingBuffer:dequeue()\
+	if self.count == 0 then\
+		return nil\
+	end\
+\
+	local message = self.queue[self.head]\
+	self.queue[self.head] = nil -- Allow GC\
+	self.head = (self.head % self.max_size) + 1\
+	self.count = self.count - 1\
+\
+	return message\
+end\
+\
+function RingBuffer:peek()\
+	if self.count == 0 then\
+		return nil\
+	end\
+	return self.queue[self.head]\
+end\
+\
+function RingBuffer:has_messages()\
+	return self.count > 0\
+end\
+\
+-- ============================================================================\
+-- BATCH OPERATIONS\
+-- ============================================================================\
+\
+function RingBuffer:dequeue_batch(max_count)\
+	max_count = math.min(max_count or self.count, self.count)\
+	local batch = {}\
+\
+	for i = 1, max_count do\
+		local msg = self:dequeue()\
+		if msg then\
+			table.insert(batch, msg)\
+		else\
+			break\
+		end\
+	end\
+\
+	return batch\
+end\
+\
+-- ============================================================================\
+-- STATS & MANAGEMENT\
+-- ============================================================================\
+\
+function RingBuffer:get_stats()\
+	return {\
+		queued = self.count,\
+		max_size = self.max_size,\
+		dropped = self.dropped_count,\
+		free_slots = self.max_size - self.count,\
+		total_processed = self.total_processed,\
+		total_failed = self.total_failed,\
+		total_enqueued = self.total_enqueued,\
+		utilization = (self.count / self.max_size) * 100,\
+	}\
+end\
+\
+function RingBuffer:clear(only_non_retained)\
+	if only_non_retained then\
+		-- Scan and rebuild without non-retained messages\
+		local kept = {}\
+		local cleared = 0\
+\
+		while self:has_messages() do\
+			local msg = self:dequeue()\
+			if msg._retention_marker then\
+				table.insert(kept, msg)\
+			else\
+				cleared = cleared + 1\
+			end\
+		end\
+\
+		-- Re-enqueue kept messages\
+		for i = 1, #kept do\
+			self:enqueue(kept[i])\
+		end\
+\
+		if self.debug then\
+			print(string.format(\"[MAILBOX] Cleared %d non-retained messages (%d retained)\", cleared, #kept))\
+		end\
+\
+		return cleared\
+	else\
+		local cleared = self.count\
+\
+		-- Clear queue\
+		self.queue = {}\
+		self.head = 1\
+		self.tail = 1\
+		self.count = 0\
+		self.dropped_count = 0\
+\
+		if self.debug then\
+			print(string.format(\"[MAILBOX] Cleared all %d messages\", cleared))\
+		end\
+\
+		return cleared\
+	end\
+end\
+\
+function RingBuffer:set_max_size(new_size)\
+	if new_size < self.count then\
+		-- Truncate excess messages\
+		local excess = self.count - new_size\
+		for i = 1, excess do\
+			self:dequeue()\
+		end\
+\
+		if self.debug then\
+			print(string.format(\"[MAILBOX] Truncated %d messages to fit new size %d\", excess, new_size))\
+		end\
+	end\
+\
+	self.max_size = new_size\
+end\
+\
+return RingBuffer\
+"
+bundle.modules['lua-fsm-objC.objc'] = "-- ============================================================================\
+-- lua-fsm-objC.objc (FIXED - Proper upvalue ordering)\
+-- ============================================================================\
+-- core/objc.lua (REFACTORED - Closure Pattern)\
+local ABI = require(\"abi\")\
+local Core = require(\"core\")\
+local Utils = require(\"utils\")\
+\
+local ObjCFSM = {}\
+\
+function ObjCFSM.create(opts)\
+	opts = opts or {}\
+\
+	-- ============================================================\
+	-- PRIVATE STATE (Hidden in Closure - LLM Cannot Touch)\
+	-- ============================================================\
+	local current_state = opts.initial or ABI.STATES.IDLE\
+	local transition_map = Core.build_transition_map(opts.events or {})\
+	local fsm_name = opts.name or string.format(\"fsm_%x\", math.floor(math.random() * 0xFFFFFF))\
+	local debug_mode = opts.debug or false\
+	local _ = opts.strict_mode -- Mark as used to silence warning\
+\
+	-- Callback storage (private)\
+	local callbacks = {}\
+	if opts.callbacks then\
+		for k, v in pairs(opts.callbacks) do\
+			callbacks[k] = v\
+		end\
+	end\
+\
+	-- ============================================================\
+	-- PUBLIC API (Define FIRST so it's available as upvalue)\
+	-- ============================================================\
+	local public_api = {}\
+\
+	-- ============================================================\
+	-- PRIVATE HELPER FUNCTIONS\
+	-- ============================================================\
+\
+	local function can_transition_internal(event_name)\
+		return Core.can_transition(transition_map, event_name, current_state)\
+	end\
+\
+	local function execute_transition(event_name, data, options)\
+		local can, target = can_transition_internal(event_name)\
+		if not can then\
+			return ABI.error_result(\
+				ABI.ERRORS.INVALID_TRANSITION,\
+				string.format(\"Cannot transition from '%s' via '%s'\", current_state, event_name),\
+				{ current = current_state, event = event_name }\
+			)\
+		end\
+\
+		local ctx = Core.create_context(event_name, current_state, target, data, options)\
+\
+		-- BEFORE callback\
+		if callbacks[\"onbefore\" .. event_name] then\
+			local result = callbacks[\"onbefore\" .. event_name](public_api, ctx)\
+			if result == false then\
+				return ABI.error_result(\
+					ABI.ERRORS.CANCELLED_BEFORE,\
+					string.format(\"Transition cancelled in onbefore%s\", event_name),\
+					{ event = event_name, context = ctx }\
+				)\
+			end\
+		end\
+\
+		-- LEAVE callback\
+		if callbacks[\"onleave\" .. ctx.from] then\
+			local result = callbacks[\"onleave\" .. ctx.from](public_api, ctx)\
+			if result == false then\
+				return ABI.error_result(\
+					ABI.ERRORS.CANCELLED_LEAVE,\
+					string.format(\"Transition cancelled in onleave%s\", ctx.from),\
+					{ event = event_name, context = ctx }\
+				)\
+			end\
+		end\
+\
+		-- Update state\
+		current_state = target\
+		public_api.current = current_state -- Update current field\
+		ABI.clock:advance() -- Advance clock on successful transition\
+\
+		-- ENTER callback\
+		if callbacks[\"onenter\" .. ctx.to] then\
+			callbacks[\"onenter\" .. ctx.to](public_api, ctx)\
+		end\
+\
+		-- AFTER callback\
+		if callbacks[\"onafter\" .. event_name] then\
+			callbacks[\"onafter\" .. event_name](public_api, ctx)\
+		end\
+\
+		-- State change notification\
+		if callbacks.onstatechange then\
+			callbacks.onstatechange(public_api, ctx)\
+		end\
+\
+		return ABI.success_result(ctx)\
+	end\
+\
+	-- ============================================================\
+	-- WRAP CALLBACKS TO UPDATE CURRENT FIELD\
+	-- (Define AFTER public_api but BEFORE final API assembly)\
+	-- ============================================================\
+\
+	-- Store original onstatechange\
+	local original_onstatechange = callbacks.onstatechange\
+\
+	-- Wrap it\
+	callbacks.onstatechange = function(fsm, ctx)\
+		public_api.current = ctx.to\
+		if original_onstatechange then\
+			original_onstatechange(fsm, ctx)\
+		end\
+	end\
+\
+	-- ============================================================\
+	-- BUILD PUBLIC API\
+	-- ============================================================\
+\
+	-- Read-only state access (compatibility with both styles)\
+	public_api.current = current_state\
+\
+	function public_api.get_state()\
+		return current_state\
+	end\
+\
+	function public_api.get_name()\
+		return fsm_name\
+	end\
+\
+	-- Predicate checks\
+	function public_api.can(event_name)\
+		return can_transition_internal(event_name)\
+	end\
+\
+	function public_api.is(state_name)\
+		return current_state == state_name\
+	end\
+\
+	-- ============================================================================\
+	-- lua-fsm-objC.mailbox (FIXED - Event method creation)\
+	-- ============================================================================\
+\
+	-- Dynamic event methods\
+	for _, ev in ipairs(opts.events or {}) do\
+		-- Create the event method unconditionally at construction time\
+		public_api[ev.name] = function(params)\
+			params = params or {}\
+			return execute_transition(ev.name, params.data, params.options)\
+		end\
+	end\
+\
+	-- Export constants (read-only)\
+	public_api.ASYNC = ABI.STATES.ASYNC\
+	public_api.NONE = ABI.STATES.NONE\
+	public_api.STATES = ABI.STATES\
+\
+	-- ============================================================\
+	-- FREEZE PUBLIC API (Prevent Method Injection)\
+	-- ============================================================\
+\
+	local frozen = {}\
+	local mt = {\
+		__index = public_api,\
+		__newindex = function(t, k, v)\
+			-- Allow setting 'current' field\
+			if k == \"current\" then\
+				rawset(t, k, v)\
+				return\
+			end\
+			error(string.format(\"Cannot modify FSM public API: attempted to set '%s'\", tostring(k)), 2)\
+		end,\
+		__metatable = {\
+			protected = true,\
+			type = \"CALYX_OBJC_FSM\",\
+			version = ABI.VERSION,\
+		},\
+	}\
+	setmetatable(frozen, mt)\
+\
+	-- Initialize current field\
+	frozen.current = current_state\
+\
+	return frozen\
+end\
+\
+return ObjCFSM\
+"
+bundle.modules['lua-fsm-objC.mailbox'] = "-- ============================================================================\
+-- lua-fsm-objC.mailbox (FIXED - Simplified event registration)\
+-- ============================================================================\
+-- core/mailbox.lua (REFACTORED - Closure Pattern)\
+local ABI = require(\"abi\")\
+local Core = require(\"core\")\
+local RingBuffer = require(\"ringbuffer\")\
+local utils = require(\"utils\")\
+local MailboxFSM = {}\
+\
+function MailboxFSM.create(opts)\
+	opts = opts or {}\
+\
+	-- ============================================================\
+	-- PRIVATE STATE (Closure-Protected)\
+	-- ============================================================\
+	local current_state = opts.initial or ABI.STATES.IDLE\
+	local async_state = ABI.STATES.NONE\
+	local transition_context = nil\
+	local current_event = nil\
+	local transition_map = Core.build_transition_map(opts.events or {})\
+\
+	-- Lua 5.1 math.random fix\
+	math.randomseed(os.time())\
+	math.random()\
+	math.random()\
+	math.random()\
+	local fsm_name = opts.name or string.format(\"fsm_%x\", math.floor(math.random() * 16777215))\
+	local debug_mode = opts.debug or false\
+\
+	local mailbox = RingBuffer.new(opts.mailbox_size or 1000, {\
+		overflow_policy = opts.overflow_policy or \"drop_newest\",\
+		debug = debug_mode,\
+		on_backpressure = opts.on_backpressure,\
+	})\
+\
+	local callbacks = {}\
+	if opts.callbacks then\
+		for k, v in pairs(opts.callbacks) do\
+			callbacks[k] = v\
+		end\
+	end\
+\
+	-- ============================================================\
+	-- PUBLIC API (Forward Declaration)\
+	-- ============================================================\
+	local public_api = {}\
+\
+	-- ============================================================\
+	-- PRIVATE HELPERS\
+	-- ============================================================\
+\
+	local function can_transition_internal(event_name)\
+		return Core.can_transition(transition_map, event_name, current_state)\
+	end\
+\
+	local function safe_tostring(value)\
+		if value == nil then\
+			return \"nil\"\
+		end\
+		local t = type(value)\
+		if t == \"string\" then\
+			return value\
+		end\
+		if t == \"table\" then\
+			return \"table\"\
+		end\
+		return tostring(value)\
+	end\
+\
+	local function complete_async()\
+		if not transition_context then\
+			return ABI.error_result(ABI.ERRORS.CONTEXT_LOST, \"Transition context lost\")\
+		end\
+\
+		local ctx = transition_context\
+\
+		if async_state and async_state ~= ABI.STATES.NONE then\
+			local suffix = string.match(async_state, \"_(.+)$\")\
+\
+			if suffix == \"LEAVE_WAIT\" then\
+				current_state = ctx.to\
+				public_api.current = current_state\
+				public_api.asyncState = async_state\
+				ABI.clock:advance()\
+\
+				async_state = ctx.event .. ABI.STATES.SUFFIXES.ENTER_WAIT\
+				public_api.asyncState = async_state\
+\
+				if callbacks[\"onenter\" .. ctx.to] then\
+					local result = callbacks[\"onenter\" .. ctx.to](public_api, ctx)\
+					if result == ABI.STATES.ASYNC then\
+						return ABI.success_result({ async = true, stage = async_state })\
+					end\
+				end\
+\
+				return complete_async()\
+			elseif suffix == \"ENTER_WAIT\" then\
+				if callbacks[\"onafter\" .. ctx.event] then\
+					callbacks[\"onafter\" .. ctx.event](public_api, ctx)\
+				end\
+\
+				if callbacks.onstatechange then\
+					callbacks.onstatechange(public_api, ctx)\
+				end\
+\
+				async_state = ABI.STATES.NONE\
+				public_api.asyncState = async_state\
+				current_event = nil\
+				transition_context = nil\
+				ABI.clock:advance()\
+\
+				return ABI.success_result(ctx)\
+			end\
+		end\
+\
+		return ABI.error_result(ABI.ERRORS.INVALID_STAGE, \"Invalid async stage\", { stage = async_state })\
+	end\
+\
+	local function execute_transition(event_name, data, options)\
+		-- Validate event name\
+		if type(event_name) ~= \"string\" then\
+			return ABI.error_result(\
+				ABI.ERRORS.INVALID_EVENT_NAME,\
+				string.format(\"Event name must be string, got %s\", type(event_name))\
+			)\
+		end\
+\
+		-- Transition collision check\
+		if async_state ~= ABI.STATES.NONE and not string.find(async_state, event_name, 1, true) then\
+			return ABI.error_result(\
+				ABI.ERRORS.TRANSITION_IN_PROGRESS,\
+				string.format(\
+					\"Transition '%s' in progress, cannot start '%s'\",\
+					safe_tostring(current_event),\
+					safe_tostring(event_name)\
+				),\
+				{ current_event = current_event, requested_event = event_name }\
+			)\
+		end\
+\
+		-- Resume if in async state\
+		if async_state ~= ABI.STATES.NONE and string.find(async_state, event_name, 1, true) then\
+			return complete_async()\
+		end\
+\
+		-- Start new transition\
+		local can, target = can_transition_internal(event_name)\
+		if not can then\
+			return ABI.error_result(\
+				ABI.ERRORS.INVALID_TRANSITION,\
+				string.format(\
+					\"Cannot transition from '%s' via '%s'\",\
+					safe_tostring(current_state),\
+					safe_tostring(event_name)\
+				),\
+				{ current = current_state, event = event_name }\
+			)\
+		end\
+\
+		local ctx = Core.create_context(event_name, current_state, target, data, options)\
+\
+		-- BEFORE callback\
+		if callbacks[\"onbefore\" .. event_name] then\
+			if callbacks[\"onbefore\" .. event_name](public_api, ctx) == false then\
+				return ABI.error_result(ABI.ERRORS.CANCELLED_BEFORE, \"Transition cancelled\", { event = event_name })\
+			end\
+		end\
+\
+		-- LEAVE callback\
+		if callbacks[\"onleave\" .. ctx.from] then\
+			local result = callbacks[\"onleave\" .. ctx.from](public_api, ctx)\
+			if result == false then\
+				return ABI.error_result(ABI.ERRORS.CANCELLED_LEAVE, \"Transition cancelled\", { from = ctx.from })\
+			end\
+\
+			if result == ABI.STATES.ASYNC then\
+				transition_context = ctx\
+				current_event = event_name\
+				async_state = event_name .. ABI.STATES.SUFFIXES.LEAVE_WAIT\
+				public_api.asyncState = async_state\
+				ABI.clock:advance()\
+				return ABI.success_result({ async = true, stage = async_state })\
+			end\
+		end\
+\
+		-- Synchronous completion\
+		current_state = target\
+		public_api.current = current_state\
+		ABI.clock:advance()\
+\
+		if callbacks[\"onenter\" .. ctx.to] then\
+			callbacks[\"onenter\" .. ctx.to](public_api, ctx)\
+		end\
+		if callbacks[\"onafter\" .. event_name] then\
+			callbacks[\"onafter\" .. event_name](public_api, ctx)\
+		end\
+		if callbacks.onstatechange then\
+			callbacks.onstatechange(public_api, ctx)\
+		end\
+\
+		return ABI.success_result(ctx)\
+	end\
+\
+	-- ============================================================\
+	-- BUILD PUBLIC API\
+	-- ============================================================\
+	public_api.current = current_state\
+	public_api.asyncState = async_state\
+	public_api.mailbox = mailbox -- Always expose for test suite\
+\
+	-- Core getters\
+	function public_api.get_state()\
+		return current_state\
+	end\
+	function public_api.get_async_state()\
+		return async_state\
+	end\
+	function public_api.get_name()\
+		return fsm_name\
+	end\
+	function public_api.can(event_name)\
+		return can_transition_internal(event_name)\
+	end\
+	function public_api.is(state_name)\
+		return current_state == state_name\
+	end\
+\
+	-- Resume async transition\
+	function public_api.resume()\
+		if async_state == ABI.STATES.NONE then\
+			return ABI.error_result(ABI.ERRORS.NO_ACTIVE_TRANSITION, \"No active transition\")\
+		end\
+		return complete_async()\
+	end\
+\
+	-- ============================================================\
+	-- SEND - Handle multiple signature patterns\
+	-- ============================================================\
+	function public_api.send(event, params)\
+		local event_name\
+		local event_data = {}\
+		local event_options = {}\
+		local retain = false\
+		local no_retry = false\
+\
+		-- Pattern 1: send(\"event\", {data=..., options=...})\
+		if type(event) == \"string\" and type(params) == \"table\" then\
+			event_name = event\
+			event_data = params.data or {}\
+			event_options = params.options or {}\
+			retain = params.retain or false\
+			no_retry = params.no_retry or false\
+\
+		-- Pattern 2: send({event=\"event\", data=..., options=...})\
+		elseif type(event) == \"table\" and event.event then\
+			event_name = event.event\
+			event_data = event.data or {}\
+			event_options = event.options or {}\
+			retain = event.retain or false\
+			no_retry = event.no_retry or false\
+\
+		-- Pattern 3: send({data=...}, \"event\")  -- Test suite uses this\
+		elseif type(event) == \"table\" and type(params) == \"string\" then\
+			event_name = params\
+			event_data = event.data or {}\
+			event_options = event.options or {}\
+			retain = event.retain or false\
+			no_retry = event.no_retry or false\
+\
+		-- Pattern 4: send(\"event\")\
+		elseif type(event) == \"string\" then\
+			event_name = event\
+\
+		-- Pattern 5: send({event=\"event\"})\
+		elseif type(event) == \"table\" and event.event then\
+			event_name = event.event\
+		else\
+			return ABI.error_result(\
+				ABI.ERRORS.INVALID_EVENT_NAME,\
+				\"send() could not determine event name from arguments\"\
+			)\
+		end\
+\
+		-- Ensure event_name is a string\
+		if type(event_name) ~= \"string\" then\
+			event_name = tostring(event_name)\
+		end\
+\
+		local message = {\
+			event = event_name,\
+			data = event_data,\
+			options = event_options,\
+			from_fsm = fsm_name,\
+			tick = ABI.clock:now(),\
+			_retention_marker = retain,\
+			no_retry = no_retry,\
+			retry_count = 0,\
+		}\
+\
+		return mailbox:enqueue(message)\
+	end\
+\
+	-- Process mailbox\
+	function public_api.process_mailbox()\
+		if mailbox.processing then\
+			return ABI.error_result(ABI.ERRORS.ALREADY_PROCESSING, \"Mailbox is being processed\")\
+		end\
+\
+		mailbox.processing = true\
+		local processed = 0\
+		local failed = 0\
+		local retry_queue = {}\
+\
+		while mailbox:has_messages() do\
+			local msg = mailbox:dequeue()\
+			if not msg then\
+				break\
+			end\
+\
+			if not msg.event or type(msg.event) ~= \"string\" then\
+				failed = failed + 1\
+				mailbox.total_failed = (mailbox.total_failed or 0) + 1\
+			else\
+				-- Direct execution\
+				local result = execute_transition(msg.event, msg.data, msg.options)\
+\
+				if result and result.ok == true then\
+					processed = processed + 1\
+					mailbox.total_processed = (mailbox.total_processed or 0) + 1\
+				else\
+					failed = failed + 1\
+					mailbox.total_failed = (mailbox.total_failed or 0) + 1\
+\
+					if not msg.no_retry and (msg.retry_count or 0) < 3 then\
+						msg.retry_count = (msg.retry_count or 0) + 1\
+						table.insert(retry_queue, msg)\
+					end\
+				end\
+			end\
+			ABI.clock:advance()\
+		end\
+\
+		-- Re-enqueue retry messages\
+		for i = 1, #retry_queue do\
+			mailbox:enqueue(retry_queue[i])\
+		end\
+\
+		mailbox.processing = false\
+\
+		return ABI.success_result({\
+			processed = processed,\
+			failed = failed,\
+			retry_queued = #retry_queue,\
+			remaining = mailbox.count,\
+		})\
+	end\
+\
+	-- Mailbox management methods\
+	function public_api.mailbox_stats()\
+		return mailbox:get_stats()\
+	end\
+\
+	function public_api.clear_mailbox()\
+		return ABI.success_result({ cleared = mailbox:clear() })\
+	end\
+\
+	function public_api.set_mailbox_size(new_size)\
+		mailbox:set_max_size(new_size)\
+		return ABI.success_result({ size = mailbox.max_size })\
+	end\
+\
+	-- ============================================================\
+	-- DYNAMIC EVENT METHODS - SIMPLIFIED REGISTRATION\
+	-- ============================================================\
+	for _, ev in ipairs(opts.events or {}) do\
+		local event_name = ev.name\
+\
+		-- Always create the event method - no collision checking at construction time\
+		public_api[event_name] = function(params)\
+			params = params or {}\
+			if debug_mode then\
+				print(\"[CALL] \" .. utils.format_objc_call(event_name, params))\
+			end\
+			return execute_transition(event_name, params.data, params.options)\
+		end\
+	end\
+\
+	-- Export constants\
+	public_api.ASYNC = ABI.STATES.ASYNC\
+	public_api.NONE = ABI.STATES.NONE\
+	public_api.STATES = ABI.STATES\
+\
+	-- ============================================================\
+	-- FREEZE PUBLIC API\
+	-- ============================================================\
+	local frozen = {}\
+	local mt = {\
+		__index = public_api,\
+		__newindex = function(t, k, v)\
+			if k == \"current\" or k == \"asyncState\" then\
+				rawset(t, k, v)\
+				return\
+			end\
+			error(string.format(\"Cannot modify FSM: attempted to set field '%s'\", tostring(k)), 2)\
+		end,\
+		__metatable = {\
+			protected = true,\
+			type = \"CALYX_MAILBOX_FSM\",\
+			version = ABI.VERSION,\
+		},\
+	}\
+	setmetatable(frozen, mt)\
+\
+	frozen.current = current_state\
+	frozen.asyncState = async_state\
+\
+	return frozen\
+end\
+\
+return MailboxFSM\
 "
 
--- Survival Lab Registration
-package.preload['data_handlers'] = function() return load_module('data_handlers') end
-package.preload['calyx_fsm_mailbox'] = function() return load_module('calyx_fsm_mailbox') end
-package.preload['calyx_fsm_objc'] = function() return load_module('calyx_fsm_objc') end
+-- Survival Lab Registration (Topologically Sorted)
+package.preload['lua-fsm-objC.abi'] = function() return load_module('lua-fsm-objC.abi') end
+package.preload['abi'] = package.preload['lua-fsm-objC.abi']
+package.preload['lua-fsm-objC.utils'] = function() return load_module('lua-fsm-objC.utils') end
+package.preload['utils'] = package.preload['lua-fsm-objC.utils']
+package.preload['lua-fsm-objC.core'] = function() return load_module('lua-fsm-objC.core') end
+package.preload['core'] = package.preload['lua-fsm-objC.core']
+package.preload['lua-fsm-objC.ringbuffer'] = function() return load_module('lua-fsm-objC.ringbuffer') end
+package.preload['ringbuffer'] = package.preload['lua-fsm-objC.ringbuffer']
+package.preload['lua-fsm-objC.objc'] = function() return load_module('lua-fsm-objC.objc') end
+package.preload['objc'] = package.preload['lua-fsm-objC.objc']
+package.preload['lua-fsm-objC.mailbox'] = function() return load_module('lua-fsm-objC.mailbox') end
+package.preload['mailbox'] = package.preload['lua-fsm-objC.mailbox']
 
--- ===== ABI ASSEMBLY =====
-local machine = load_module('calyx_fsm_mailbox')
-local STATES = {
-    NONE = machine.NONE or 'none',
-    ASYNC = machine.ASYNC or 'async',
-}
+-- Short aliases for core modules
+package.preload['abi'] = package.preload['lua-fsm-objC.abi']
+package.preload['core'] = package.preload['lua-fsm-objC.core']
+package.preload['mailbox'] = package.preload['lua-fsm-objC.mailbox']
+package.preload['objc'] = package.preload['lua-fsm-objC.objc']
+package.preload['utils'] = package.preload['lua-fsm-objC.utils']
+package.preload['ringbuffer'] = package.preload['lua-fsm-objC.ringbuffer']
+
+-- ===== CALYX FSM UNIFIED API =====
+
+local lua_fsm_abi = require('lua-fsm-objC.abi')
+local lua_fsm_core = require('lua-fsm-objC.core')
+local lua_fsm_mailbox = require('lua-fsm-objC.mailbox')
+local lua_fsm_objc = require('lua-fsm-objC.objc')
+local lua_fsm_utils = require('lua-fsm-objC.utils')
 
 return {
-    create = machine.create,
-    NONE = STATES.NONE,
-    ASYNC = STATES.ASYNC,
+    -- Creation APIs
+    create_object_fsm = lua_fsm_objc.create,
+    create_mailbox_fsm = lua_fsm_mailbox.create,
+
+    -- Shared constants
+    ASYNC = lua_fsm_abi.STATES.ASYNC,
+    NONE = lua_fsm_abi.STATES.NONE,
+    STATES = lua_fsm_abi.STATES,
+    ERRORS = lua_fsm_abi.ERRORS,
+
+    -- Version info
+    VERSION = lua_fsm_abi.VERSION,
+    NAME = lua_fsm_abi.NAME,
+    SPEC = lua_fsm_abi.SPEC,
+
+    -- Diagnostics (debug mode only)
+    diagnostics = {
+        format_objc_call = lua_fsm_utils.format_objc_call,
+        serialize = lua_fsm_utils.serialize_table,
+        clock = lua_fsm_abi.clock,
+    },
 }
