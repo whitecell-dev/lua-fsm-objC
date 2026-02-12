@@ -131,29 +131,29 @@ print("  [CLEANUP] Clearing all mailbox queues...")
 -- Clear fsm1 mailbox (has 1000 unprocessed messages from Phase 1)
 local fsm1_cleared = 0
 if fsm1.mailbox then
-    fsm1_cleared = fsm1.mailbox:count()
-    fsm1:clear_mailbox()  -- Clear all messages
-    print(string.format("    Cleared %d messages from OVERFLOW_VICTIM", fsm1_cleared))
+	fsm1_cleared = fsm1.mailbox:count()
+	fsm1:clear_mailbox() -- Clear all messages
+	print(string.format("    Cleared %d messages from OVERFLOW_VICTIM", fsm1_cleared))
 end
 
 -- Clear fsm2 mailbox (should be empty but verify)
 local fsm2_cleared = 0
 if fsm2.mailbox then
-    fsm2_cleared = fsm2.mailbox:count()
-    if fsm2_cleared > 0 then
-        fsm2:clear_mailbox()
-        print(string.format("    Cleared %d messages from ASYNC_STRESS", fsm2_cleared))
-    end
+	fsm2_cleared = fsm2.mailbox:count()
+	if fsm2_cleared > 0 then
+		fsm2:clear_mailbox()
+		print(string.format("    Cleared %d messages from ASYNC_STRESS", fsm2_cleared))
+	end
 end
 
 -- Clear fsm3 mailbox
 local fsm3_cleared = 0
 if fsm3.mailbox then
-    fsm3_cleared = fsm3.mailbox:count()
-    if fsm3_cleared > 0 then
-        fsm3:clear_mailbox()
-        print(string.format("    Cleared %d messages from CONTEXT_TEST", fsm3_cleared))
-    end
+	fsm3_cleared = fsm3.mailbox:count()
+	if fsm3_cleared > 0 then
+		fsm3:clear_mailbox()
+		print(string.format("    Cleared %d messages from CONTEXT_TEST", fsm3_cleared))
+	end
 end
 
 local total_cleared = fsm1_cleared + fsm2_cleared + fsm3_cleared
@@ -161,7 +161,7 @@ print(string.format("  [CLEANUP] Total messages cleared: %d", total_cleared))
 
 -- Force garbage collection twice for thorough cleanup
 collectgarbage("collect")
-collectgarbage("collect")  -- Some Lua implementations need multiple passes
+collectgarbage("collect") -- Some Lua implementations need multiple passes
 
 local final_mem = collectgarbage("count")
 
@@ -172,26 +172,26 @@ print(string.format("  Total growth: %.2f KB", final_mem - start_mem))
 -- Check if messages are actually being retained
 local retained_refs = 0
 if fsm1.mailbox then
-    retained_refs = retained_refs + fsm1.mailbox:count()
+	retained_refs = retained_refs + fsm1.mailbox:count()
 end
 if fsm2.mailbox then
-    retained_refs = retained_refs + fsm2.mailbox:count()
+	retained_refs = retained_refs + fsm2.mailbox:count()
 end
 if fsm3.mailbox then
-    retained_refs = retained_refs + fsm3.mailbox:count()
+	retained_refs = retained_refs + fsm3.mailbox:count()
 end
 
 print(string.format("  Retained message references after cleanup: %d", retained_refs))
 
 -- Calculate expected memory growth (just from FSM objects, not messages)
-local expected_growth = 50  -- KB, approximate for FSM object creation
+local expected_growth = 50 -- KB, approximate for FSM object creation
 local actual_growth = final_mem - start_mem
 local excess_growth = actual_growth - expected_growth
 
-if excess_growth > 100 then  -- More than 100KB excess = potential leak
-    print(string.format("  [WARNING] Excess memory growth: +%.2f KB (possible leak)", excess_growth))
+if excess_growth > 100 then -- More than 100KB excess = potential leak
+	print(string.format("  [WARNING] Excess memory growth: +%.2f KB (possible leak)", excess_growth))
 else
-    print(string.format("  [OK] Memory growth within expected range: +%.2f KB", actual_growth))
+	print(string.format("  [OK] Memory growth within expected range: +%.2f KB", actual_growth))
 end
 
 -- ============================================================================
@@ -206,50 +206,51 @@ local warnings = {}
 
 -- Check 1: Queue limits working
 if fsm1_cleared == 1000 then
-    table.insert(warnings, string.format("QUEUE_LIMIT_OK: %d messages enqueued (limit: 1000)", fsm1_cleared))
+	table.insert(warnings, string.format("QUEUE_LIMIT_OK: %d messages enqueued (limit: 1000)", fsm1_cleared))
 else
-    table.insert(failures, string.format("QUEUE_LIMIT_FAILED: Expected 1000, got %d", fsm1_cleared))
+	table.insert(failures, string.format("QUEUE_LIMIT_FAILED: Expected 1000, got %d", fsm1_cleared))
 end
 
 -- Check 2: Memory retention after explicit cleanup
 if retained_refs > 0 then
-    table.insert(failures, string.format("MEMORY_RETENTION: %d messages still retained after cleanup", retained_refs))
+	table.insert(failures, string.format("MEMORY_RETENTION: %d messages still retained after cleanup", retained_refs))
 else
-    table.insert(warnings, "MEMORY_RETENTION_OK: All messages cleared")
+	table.insert(warnings, "MEMORY_RETENTION_OK: All messages cleared")
 end
 
 -- Check 3: Automatic cleanup working
 if total_cleared > 0 then
-    table.insert(warnings, string.format("CLEANUP_WORKING: %d messages cleared via API", total_cleared))
+	table.insert(warnings, string.format("CLEANUP_WORKING: %d messages cleared via API", total_cleared))
 end
 
 -- Check 4: Memory growth reasonable
 if excess_growth > 100 then
-    table.insert(failures, string.format("EXCESS_MEMORY: +%.2f KB beyond expected", excess_growth))
+	table.insert(failures, string.format("EXCESS_MEMORY: +%.2f KB beyond expected", excess_growth))
 else
-    table.insert(warnings, string.format("MEMORY_OK: Growth within limits (+%.2f KB)", actual_growth))
+	table.insert(warnings, string.format("MEMORY_OK: Growth within limits (+%.2f KB)", actual_growth))
 end
 
 if #failures == 0 then
-    print("✓ No critical failures detected")
-    if #warnings > 0 then
-        print("⚠️  WARNINGS:")
-        for i, warning in ipairs(warnings) do
-            print(string.format("  %d. %s", i, warning))
-        end
-    end
+	print("✓ No critical failures detected")
+	if #warnings > 0 then
+		print("⚠️  WARNINGS:")
+		for i, warning in ipairs(warnings) do
+			print(string.format("  %d. %s", i, warning))
+		end
+	end
 else
-    print("✗ FAILURES OBSERVED:")
-    for i, failure in ipairs(failures) do
-        print(string.format("  %d. %s", i, failure))
-    end
-    if #warnings > 0 then
-        print("⚠️  ADDITIONAL WARNINGS:")
-        for i, warning in ipairs(warnings) do
-            print(string.format("  %d. %s", i, warning))
-        end
-    end
+	print("✗ FAILURES OBSERVED:")
+	for i, failure in ipairs(failures) do
+		print(string.format("  %d. %s", i, failure))
+	end
+	if #warnings > 0 then
+		print("⚠️  ADDITIONAL WARNINGS:")
+		for i, warning in ipairs(warnings) do
+			print(string.format("  %d. %s", i, warning))
+		end
+	end
 end
 
 print(string.rep("=", 60))
 print("[BREAKAGE_SUITE] Mailbox overflow test complete")
+

@@ -144,14 +144,26 @@ function ObjCFSM.create(opts)
 	-- lua-fsm-objC.mailbox (FIXED - Event method creation)
 	-- ============================================================================
 
-	-- Dynamic event methods
+	-- ============================================================
+	-- DYNAMIC EVENT METHODS + CAPABILITY LIST
+	-- ============================================================
+	local caps = {}
+
 	for _, ev in ipairs(opts.events or {}) do
-		-- Create the event method unconditionally at construction time
-		public_api[ev.name] = function(params)
+		local event_name = ev.name
+		caps[#caps + 1] = event_name
+
+		public_api[event_name] = function(params)
 			params = params or {}
-			return execute_transition(ev.name, params.data, params.options)
+			if debug_mode then
+				print("[CALL] " .. utils.format_objc_call(event_name, params))
+			end
+			return execute_transition(event_name, params.data, params.options)
 		end
 	end
+
+	table.sort(caps)
+	public_api.capabilities = caps
 
 	-- Export constants (read-only)
 	public_api.ASYNC = ABI.STATES.ASYNC

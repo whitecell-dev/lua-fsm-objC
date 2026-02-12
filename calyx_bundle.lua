@@ -1,4 +1,4 @@
--- CALYX BUNDLE GENERATED: Wed Feb 11 17:26:34 2026
+-- CALYX BUNDLE GENERATED: Wed Feb 11 22:04:20 2026
 -- PRODUCTION HARDENED: Deterministic ordering + frozen API
 local bundle = { modules = {}, loaded = {} }
 
@@ -1131,14 +1131,26 @@ function ObjCFSM.create(opts)\
 	-- lua-fsm-objC.mailbox (FIXED - Event method creation)\
 	-- ============================================================================\
 \
-	-- Dynamic event methods\
+	-- ============================================================\
+	-- DYNAMIC EVENT METHODS + CAPABILITY LIST\
+	-- ============================================================\
+	local caps = {}\
+\
 	for _, ev in ipairs(opts.events or {}) do\
-		-- Create the event method unconditionally at construction time\
-		public_api[ev.name] = function(params)\
+		local event_name = ev.name\
+		caps[#caps + 1] = event_name\
+\
+		public_api[event_name] = function(params)\
 			params = params or {}\
-			return execute_transition(ev.name, params.data, params.options)\
+			if debug_mode then\
+				print(\"[CALL] \" .. utils.format_objc_call(event_name, params))\
+			end\
+			return execute_transition(event_name, params.data, params.options)\
 		end\
 	end\
+\
+	table.sort(caps)\
+	public_api.capabilities = caps\
 \
 	-- Export constants (read-only)\
 	public_api.ASYNC = ABI.STATES.ASYNC\
@@ -1549,12 +1561,14 @@ function MailboxFSM.create(opts)\
 	end\
 \
 	-- ============================================================\
-	-- DYNAMIC EVENT METHODS - SIMPLIFIED REGISTRATION\
+	-- DYNAMIC EVENT METHODS + CAPABILITY LIST\
 	-- ============================================================\
+	local caps = {}\
+\
 	for _, ev in ipairs(opts.events or {}) do\
 		local event_name = ev.name\
+		caps[#caps + 1] = event_name\
 \
-		-- Always create the event method - no collision checking at construction time\
 		public_api[event_name] = function(params)\
 			params = params or {}\
 			if debug_mode then\
@@ -1563,6 +1577,9 @@ function MailboxFSM.create(opts)\
 			return execute_transition(event_name, params.data, params.options)\
 		end\
 	end\
+\
+	table.sort(caps)\
+	public_api.capabilities = caps\
 \
 	-- Export constants\
 	public_api.ASYNC = ABI.STATES.ASYNC\

@@ -371,12 +371,14 @@ function MailboxFSM.create(opts)
 	end
 
 	-- ============================================================
-	-- DYNAMIC EVENT METHODS - SIMPLIFIED REGISTRATION
+	-- DYNAMIC EVENT METHODS + CAPABILITY LIST
 	-- ============================================================
+	local caps = {}
+
 	for _, ev in ipairs(opts.events or {}) do
 		local event_name = ev.name
+		caps[#caps + 1] = event_name
 
-		-- Always create the event method - no collision checking at construction time
 		public_api[event_name] = function(params)
 			params = params or {}
 			if debug_mode then
@@ -385,6 +387,9 @@ function MailboxFSM.create(opts)
 			return execute_transition(event_name, params.data, params.options)
 		end
 	end
+
+	table.sort(caps)
+	public_api.capabilities = caps
 
 	-- Export constants
 	public_api.ASYNC = ABI.STATES.ASYNC
