@@ -157,24 +157,24 @@ function Bundler:validate_source(path, content, module_name)
 	local old_require = _G.require
 
 	_G.require = function(modname)
-		-- 1️⃣ Try real require first
+		-- 1∩╕ÅΓâú Try real require first
 		local status, result = pcall(old_require, modname)
 		if status then
 			return result
 		end
 
-		-- 2️⃣ Try package.preload (ABI might be primed here)
+		-- 2∩╕ÅΓâú Try package.preload (ABI might be primed here)
 		local preload = package.preload[modname]
 		if preload then
 			return preload()
 		end
 
-		-- 3️⃣ If ABI not yet loaded and requested → hard fail
+		-- 3∩╕ÅΓâú If ABI not yet loaded and requested ΓåÆ hard fail
 		if modname == "abi" or modname:match("%.abi$") or modname:match("^lua%-fsm%-objC%.abi$") then
 			error("[VALIDATION] Critical ABI module missing: " .. modname .. " (required by " .. path .. ")")
 		end
 
-		-- 4️⃣ Fallback mock (safe for non-critical deps)
+		-- 4∩╕ÅΓâú Fallback mock (safe for non-critical deps)
 		self:log("  (Mocking dependency: " .. modname .. " for " .. path .. ")")
 		return setmetatable({}, {
 			__index = function()
@@ -217,7 +217,7 @@ function Bundler:find_modules(dir)
 	local abi_path = dir .. "/abi.lua"
 	local abi_attr = lfs.attributes(abi_path)
 	if abi_attr and abi_attr.mode == "file" then
-		self:log("🔍 Found ABI module, priming first...")
+		self:log("≡ƒöì Found ABI module, priming first...")
 		self:process_file(abi_path, "abi.lua")
 	end
 
@@ -264,11 +264,11 @@ function Bundler:process_file(path, filename)
 			deps = deps,
 		}
 		table.insert(self.order, module_name)
-		self:log("✅ Validated & Captured: " .. module_name .. " (deps: " .. #deps .. ")")
+		self:log("Γ£à Validated & Captured: " .. module_name .. " (deps: " .. #deps .. ")")
 
-		-- 👇 If this is ABI, prime preload for later validation passes
+		-- ≡ƒæç If this is ABI, prime preload for later validation passes
 		if module_name:match("%.abi$") then
-			self:log("  ⚡ Priming ABI preload for validation")
+			self:log("  ΓÜí Priming ABI preload for validation")
 
 			-- Create the ABI module function
 			local abi_fn = loadstring(content, module_name)
@@ -283,7 +283,7 @@ function Bundler:process_file(path, filename)
 			package.preload[module_name] = package.preload["abi"]
 
 			self.abi_loaded = true
-			self:log("  ✅ ABI primed successfully")
+			self:log("  Γ£à ABI primed successfully")
 		end
 	end
 end
@@ -294,7 +294,7 @@ end
 
 function Bundler:generate_bundle(output_path)
 	-- Topologically sort modules
-	self:log("\n🔄 Performing topological sort...")
+	self:log("\n≡ƒöä Performing topological sort...")
 	local sorted_order = self:topological_sort()
 
 	local lines = {
@@ -405,19 +405,19 @@ local function bundle_calyx_fsm()
 	end
 
 	bundler:find_modules()
-	print(string.format("\n📦 Found %d FSM modules", #bundler.order))
+	print(string.format("\n≡ƒôª Found %d FSM modules", #bundler.order))
 
 	-- Display found modules in dependency order
-	print("\n📋 Module capture order (ABI first):")
+	print("\n≡ƒôï Module capture order (ABI first):")
 	for i, name in ipairs(bundler.order) do
 		local deps = bundler.modules[name].deps
-		local marker = name:match("%.abi$") and "🔷 " or "  • "
+		local marker = name:match("%.abi$") and "≡ƒö╖ " or "  ΓÇó "
 		print(string.format("  %s %s (deps: %d)", marker, name, #deps))
 	end
 
 	bundler:generate_bundle("calyx_bundle.lua")
 
-	print("\n✅ Bundle generation complete")
+	print("\nΓ£à Bundle generation complete")
 	print("   Next: Run 'lua init.lua' to verify bundle")
 end
 

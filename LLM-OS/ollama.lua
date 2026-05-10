@@ -12,7 +12,7 @@ local Ollama = {}
 -- ----------------------------------------------------------------------------
 Ollama.config = {
 	host = "http://localhost:11435",
-	model = "llama3.2:3b",
+	model = "phi:latest",
 	fallback_models = {
 		"llama3.2:3b",
 		"deepseek-coder:latest",

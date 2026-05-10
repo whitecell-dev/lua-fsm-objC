@@ -156,7 +156,7 @@ function ObjCFSM.create(opts)
 		public_api[event_name] = function(params)
 			params = params or {}
 			if debug_mode then
-				print("[CALL] " .. utils.format_objc_call(event_name, params))
+				print("[CALL] " .. Utils.format_objc_call(event_name, params))
 			end
 			return execute_transition(event_name, params.data, params.options)
 		end
