@@ -1,5 +1,5 @@
 -- ============================================================================
--- calyx/ollama.lua
+-- LLM-OS/ollama.lua
 -- Ollama LLM Provider for CALYX FSM - COMPLETE WITH ALL FUNCTIONS
 -- ============================================================================
 
@@ -13,6 +13,9 @@ local Ollama = {}
 Ollama.config = {
 	host = "http://localhost:11435",
 	model = "phi:latest",
+	-- KNOWN: this list is NEVER READ anywhere in the repo -- there is no fallback
+	-- logic, so a missing phi:latest yields "Model not responding" instead of
+	-- trying these. (recon 7/B16)
 	fallback_models = {
 		"llama3.2:3b",
 		"deepseek-coder:latest",
@@ -139,6 +142,10 @@ function Ollama.generate(prompt, callback)
 	local json_payload = encode_table(payload)
 	local escaped_payload = string.gsub(json_payload, "'", "'\\''")
 
+	-- KNOWN: no --max-time / --connect-timeout / --retry and no HTTP status check,
+	-- so a hung or 500-ing Ollama blocks io.popen indefinitely. The JSON payload is
+	-- also embedded in a single-quoted shell string with only `'` escaped, which is
+	-- a shell-injection surface. (recon 7/B18/B19)
 	local command = string.format(
 		"curl -s -X POST %s/api/generate -H 'Content-Type: application/json' -d '%s'",
 		Ollama.config.host,
@@ -290,6 +297,12 @@ function Ollama._dispatch(fsm, instruction)
 
 	-- Send the command
 	print("[SEND] " .. decision.message)
+	-- KNOWN: the LLM's classification is dispatched UNCONDITIONALLY -- no
+	-- fsm:can() pre-check, no effect_contract validation, and no confirmation that
+	-- decision.message is a real capability of THIS FSM (the allowlist at :113 is a
+	-- hardcoded 4-name array and :232-242 matches by unanchored substring). A wrong
+	-- or injected classification becomes a real fsm:send(). (recon 7/B14/B15)
+	-- NOT FIXED: gating LLM output through fsm:can() changes dispatch behavior.
 	local result = fsm:send(decision.message, decision.params or {})
 
 	if fsm.process_mailbox then
@@ -342,6 +355,9 @@ function Ollama.test()
 	print("Host:", Ollama.config.host)
 	print("Model:", Ollama.config.model)
 
+	-- KNOWN: Ollama.test() ALWAYS reports reachable. io.popen returns a handle
+	-- even when curl exits non-zero, so `if handle then` is not a reachability
+	-- test; the response body is read and discarded. (recon 7/B17)
 	local command = string.format("curl -s %s/api/tags", Ollama.config.host)
 	local handle = io.popen(command)
 	if handle then

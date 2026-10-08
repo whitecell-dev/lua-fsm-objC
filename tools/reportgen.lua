@@ -181,9 +181,19 @@ function ReportGen:end_test(status, summary)
 	report.timestamp_end = timestamp()
 	report.status = status or "completed"
 	report.summary = summary or ""
+	-- KNOWN: `pass` IGNORES `status`. A SKIPPED test adds only a warning
+	-- (tools/test_runner.lua:95), so it is written to JSON as pass = true, and
+	-- generate_summary (:285-289) branches only on report.pass -- meaning SKIPPED
+	-- tests are counted in `passed` in test_summary.json even though
+	-- test_runner.lua:163-164 counts them separately on the console. CRASHED is
+	-- caught only incidentally, via the TEST_CRASH failure test_runner adds.
+	-- (recon 7/B41)
 	report.pass = (#report.failures == 0)
 
 	-- Calculate duration (simplified - could parse timestamps properly)
+	-- KNOWN: hardcoded placeholder, never a measurement. Every committed report
+	-- therefore shows duration_sec = 0 even though test_runner.lua:87 computes
+	-- the real duration and only surfaces it in the console string. (recon 6/7)
 	report.duration_sec = 0 -- Placeholder for actual timing
 
 	-- Write to file

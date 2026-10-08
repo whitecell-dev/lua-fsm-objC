@@ -42,6 +42,12 @@ end
 local function execute_effect(effect)
 	if effect.type == "log" then
 		ngx.log(ngx.INFO, string.format("[MOCK] %s: %s", effect.level, effect.message))
+		-- KNOWN: catch-all for every effect type this module does NOT implement
+		-- (db_query, exit, websocket_send, notification, sleep, cache_get,
+		-- cache_delete, http_request): reported as SUCCESSFULLY EXECUTED without
+		-- doing anything. Unreachable today because this file only builds the six
+		-- types it handles, but it will silently lie as soon as one is added.
+		-- (recon 7/B9)
 		return { ok = true }
 	elseif effect.type == "metric" then
 		if cache_dict then

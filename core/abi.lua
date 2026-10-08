@@ -12,6 +12,11 @@ local ABI = {}
 -- DETERMINISTIC CLOCK
 -- ============================================================================
 
+-- KNOWN: ABI.clock is a SINGLE GLOBAL counter shared by every FSM instance in
+-- the process. It advances on every transition (core/objc.lua:83,
+-- core/mailbox.lua:97,182,201) and on every mailbox message
+-- (core/mailbox.lua:365), so tick values are neither per-FSM nor a stable
+-- assertion target. ABI.clock:reset below has no callers. (recon 7/B45)
 ABI.clock = {
 	tick = 0,
 	real_clock = os.date, -- Injected for testing
@@ -64,6 +69,10 @@ ABI.STATES = {
 -- ERROR CATEGORIES
 -- ============================================================================
 
+-- KNOWN: several codes here are never produced by any code path:
+-- no_context, no_mailbox, event_collision, missing_event, missing_target,
+-- no_memory, gc_failed. They read as a supported error surface but are dead.
+-- (recon 7)
 ABI.ERRORS = {
 	-- Transition errors
 	INVALID_TRANSITION = "invalid_transition",
@@ -95,6 +104,13 @@ ABI.ERRORS = {
 
 -- ============================================================================
 -- EVENT VALIDATION PATTERNS
+--
+-- KNOWN: NONE OF THESE ARE ENFORCED ON ANY SHIPPED PATH. They are read only by
+-- Core.validate_event_name / Core.validate_state_name (core/core.lua:116,145),
+-- and nothing calls those -- core/objc.lua and core/mailbox.lua construct FSMs
+-- with no name validation at all. Proof: breakage_suite/test_invalid_fsm_schema.lua
+-- fails 10 of 24 cases, including FSMs built with events that have no name and
+-- no target, and non-string `from` values. (recon 7/D2)
 -- ============================================================================
 
 ABI.PATTERNS = {
@@ -112,6 +128,12 @@ ABI.PATTERNS = {
 -- RESERVED NAMES
 -- ============================================================================
 
+-- KNOWN: ABI.RESERVED IS NOT ENFORCED. Its only enforcer is
+-- Core.check_event_collision (core/core.lua:179), which is dead code. An event
+-- named "send"/"resume"/"current" is therefore accepted and silently overwrites
+-- the mailbox FSM's own methods (core/mailbox.lua:253 vs the event loop at
+-- :399). breakage_suite/test_unregistered_event.lua measures the consequence as
+-- COLLISION_SEND_FAILED. (recon 7/D1)
 ABI.RESERVED = {
 	-- Core methods
 	"send",

@@ -1,3 +1,9 @@
+-- KNOWN: UNREFERENCED AND UNCALLABLE. SIL.validate (:6) calls
+-- `fsm:semantic_state()`, which does not exist on any FSM in this repo -- there
+-- is no such method on core/objc.lua or core/mailbox.lua, and no `state.stuck`
+-- / `state.context_valid` / `state.async` shape behind it. (recon 7/B33)
+-- NOT FIXED: inventing that introspection API is a feature change.
+
 -- failure_modes/workarounds/calyx_sil.lua
 local SIL = {}
 

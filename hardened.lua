@@ -79,6 +79,13 @@ function M.enable_strict_mode()
 	mt.__declared = {}
 
 	-- Mark existing globals as declared
+	-- KNOWN: THIS IS A REAL HOLE. Lua only consults __newindex for keys ABSENT
+	-- from _G, so pre-declaring every existing global means assigning to any of
+	-- them -- print, os, require, io -- succeeds SILENTLY under strict mode.
+	-- Verified: `_G.SOME_EXISTING = 2` does not raise. Strict mode therefore
+	-- blocks *creation* and *undefined reads* only, not reassignment. Tightening
+	-- this means shadowing the rawget fast path in _G and would likely break
+	-- third-party rocks, so left as-is. (recon 7/B1)
 	for k, _ in pairs(_G) do
 		mt.__declared[k] = true
 	end
@@ -627,7 +634,13 @@ function M.timed(fn, name)
 
 		print(string.format("[HARDENED] %s took %.6f seconds", name, elapsed))
 
-		return table.unpack(results)
+		-- FIX: table.unpack is Lua 5.2+. It is nil on Lua 5.1.5 and LuaJIT,
+		-- this project's stated target ("Lua 5.1.5 Compatible", core/abi.lua:5),
+		-- so M.timed raised a runtime error on every call. bundler.lua:146
+		-- rejects table.unpack in bundled sources but only scans core/, so it
+		-- never inspected this file. (recon 7/B10)
+		local unpack_fn = table.unpack or unpack
+		return unpack_fn(results)
 	end
 end
 

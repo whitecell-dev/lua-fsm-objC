@@ -5,6 +5,12 @@ local _M = {}
 
 -- Function to stream mock data continuously
 function _M.stream_data(duration_seconds, interval_ms)
+-- KNOWN: `duration` and `interval` come straight from query params
+-- (nginx.conf:216-217) with NO UPPER BOUND, and the ngx.sleep below holds the
+-- worker for the whole duration -- so /mock/stream is an unbounded worker-holding
+-- loop. The "-- non-blocking sleep" comment is wrong: ngx.sleep yields, it does
+-- not make the request non-blocking. (recon 7/B22) NOT FIXED: bounds would
+-- change endpoint behavior.
 	duration_seconds = duration_seconds or 60
 	interval_ms = interval_ms or 1000
 	local start_time = ngx.now()

@@ -31,7 +31,12 @@ while true do
 	if input == "state" then
 		print("📡 Current state:      ", assistant:get_state())
 	elseif input == "stats" then
-		print("📊 Mailbox:", vim.inspect(assistant:mailbox_stats()))
+		print("📊 Mailbox:", 		-- KNOWN: `vim` does not exist in stock Lua/LuaJIT and there is no Vim shim
+		-- or dependency in the repo, so entering "stats" raises "attempt to index a
+		-- nil value (global 'vim')". (recon 7/B20) ALSO: io.read() returns nil on
+		-- EOF and nil matches none of the verb checks below, so Ctrl-D falls into
+		-- the else branch and loops forever calling iface.ask(nil). (recon 7/B21)
+vim.inspect(assistant:mailbox_stats()))
 	else
 		-- DEBUG: print FSM capabilities
 		print("🤖 CAPABILITIES: ", table.concat(assistant.capabilities or {}, ", "))

@@ -2,6 +2,10 @@
 -- STRESS: malformed create() inputs and schema validation
 -- UPDATED: Matches new validation in calyx_fsm_mailbox.lua
 
+	-- FIX: dispatchers call callback(fsm, ctx) -- TWO args
+	-- (core/objc.lua:57-98, core/mailbox.lua:164-200). These were declared
+	-- as function(ctx), so `ctx` actually received the FSM table and any
+	-- ctx.data access raised "attempt to index field 'data' (a nil value)".
 local bundle = require("init")
 local FSM = bundle.create
 
@@ -317,10 +321,10 @@ local test_cases = {
 				{ name = "reset", from = { "initializing", "complete" }, to = "ready" },
 			},
 			callbacks = {
-				onleaveready = function(ctx)
+				onleaveready = function(fsm, ctx)
 					print("Leaving ready")
 				end,
-				onentercomplete = function(ctx)
+				onentercomplete = function(fsm, ctx)
 					print("Entered complete")
 				end,
 			},

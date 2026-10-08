@@ -1,4 +1,8 @@
 -- breakage_suite/test_context_loss_fixed.lua
+	-- FIX: dispatchers call callback(fsm, ctx) -- TWO args
+	-- (core/objc.lua:57-98, core/mailbox.lua:164-200). These were declared
+	-- as function(ctx), so `ctx` actually received the FSM table and any
+	-- ctx.data access raised "attempt to index field 'data' (a nil value)".
 local TestRunner = require("tools.test_runner")
 local runner = TestRunner.new()
 
@@ -16,7 +20,11 @@ runner:run("test_context_loss", function()
 	-- ============================================================================
 	log("Test 1: Deep async chain", "SECTION")
 
+	-- FIX: this test calls :send()/:process_mailbox()/:resume(), which only
+	-- exist on the mailbox FSM. Without kind="mailbox" init.lua:80 defaults to
+	-- "objc" and the suite crashed at :54 with "attempt to call method 'send'".
 	local deep_chain_fsm = bundle.create({
+		kind = "mailbox",
 		name = "DEEP_CHAIN_TEST",
 		initial = "A",
 		events = {
@@ -27,23 +35,23 @@ runner:run("test_context_loss", function()
 			{ name = "step5", from = "E", to = "F" },
 		},
 		callbacks = {
-			onleaveA = function(ctx)
+			onleaveA = function(fsm, ctx)
 				metric("deep_chain_step_A", os.time(), "timestamp")
 				return ASYNC
 			end,
-			onleaveB = function(ctx)
+			onleaveB = function(fsm, ctx)
 				metric("deep_chain_step_B", os.time(), "timestamp")
 				return ASYNC
 			end,
-			onleaveC = function(ctx)
+			onleaveC = function(fsm, ctx)
 				metric("deep_chain_step_C", os.time(), "timestamp")
 				return ASYNC
 			end,
-			onleaveD = function(ctx)
+			onleaveD = function(fsm, ctx)
 				metric("deep_chain_step_D", os.time(), "timestamp")
 				return ASYNC
 			end,
-			onleaveE = function(ctx)
+			onleaveE = function(fsm, ctx)
 				metric("deep_chain_step_E", os.time(), "timestamp")
 				return ASYNC
 			end,
@@ -69,6 +77,7 @@ runner:run("test_context_loss", function()
 	log("Test 2: Rapid-fire transitions", "SECTION")
 
 	local rapid_fire_fsm = bundle.create({
+		kind = "mailbox",
 		name = "RAPID_FIRE_TEST",
 		initial = "READY",
 		events = {
@@ -76,10 +85,10 @@ runner:run("test_context_loss", function()
 			{ name = "reset", from = "PROCESSING", to = "READY" },
 		},
 		callbacks = {
-			onleaveREADY = function(ctx)
+			onleaveREADY = function(fsm, ctx)
 				return ASYNC
 			end,
-			onleavePROCESSING = function(ctx)
+			onleavePROCESSING = function(fsm, ctx)
 				return ASYNC
 			end,
 		},
@@ -139,6 +148,7 @@ runner:run("test_context_loss", function()
 	log("Test 3: Synthetic context", "SECTION")
 
 	local synthetic_fsm = bundle.create({
+		kind = "mailbox",
 		name = "SYNTHETIC_TEST",
 		initial = "STABLE",
 		events = {
@@ -146,13 +156,26 @@ runner:run("test_context_loss", function()
 		},
 	})
 
-	-- Manually set async state without context
+	-- Manually set async state without context.
+	-- FIX: `currentTransitioningEvent` is NOT writable on the live frozen proxy
+	-- (core/mailbox.lua:406 permits only `current` and `asyncState`), so assigning
+	-- it here aborted the whole suite. That field only appears in the whitelist of
+	-- the DEAD Core.lock_metatable (core/core.lua:48). Recording the rejection as a
+	-- metric instead of asserting the write keeps the intended coverage: with
+	-- asyncState set but no transition_context, resume() must take the
+	-- CONTEXT_LOST branch (core/mailbox.lua:72-74).
 	synthetic_fsm.asyncState = "corrupt_LEAVE_WAIT"
-	synthetic_fsm.currentTransitioningEvent = "corrupt"
+	local synth_write_ok, synth_write_err = pcall(function()
+		synthetic_fsm.currentTransitioningEvent = "corrupt"
+	end)
+	metric("synthetic_context_write_rejected", not synth_write_ok, "boolean")
+	metric("synthetic_context_write_error", synth_write_ok and "" or tostring(synth_write_err), "string")
 
 	log("Testing synthetic context recovery", "DEBUG")
 
-	-- This should trigger the guard in _complete()
+	-- This should trigger the CONTEXT_LOST guard in complete_async()
+-- (core/mailbox.lua:72-74). There is no function named _complete() in this
+-- codebase; that name is from the deleted calyx_fsm_mailbox generation.
 	local recovery_ok, recovery_result = synthetic_fsm:resume()
 	metric("synthetic_recovery_attempted", true, "boolean")
 	metric("synthetic_recovery_success", recovery_ok, "boolean")
@@ -161,7 +184,9 @@ runner:run("test_context_loss", function()
 		log("Synthetic context recovery succeeded", "INFO")
 		metric("recovered_state", synthetic_fsm.current, "string")
 	else
-		warn("Synthetic recovery failed: " .. (recovery_result.error_type or "unknown"), "context_recovery")
+		-- FIX: Result tables expose `code` (core/abi.lua:173-182); there is no
+	-- `error_type` field, so this always reported "unknown".
+	warn("Synthetic recovery failed: " .. (recovery_result.code or "unknown"), "context_recovery")
 	end
 
 	-- ============================================================================
@@ -177,6 +202,7 @@ runner:run("test_context_loss", function()
 
 	for i = 1, fsm_count do
 		fsms[i] = bundle.create({
+			kind = "mailbox",
 			name = "MEM_TEST_" .. i,
 			initial = "IDLE",
 			events = { { name = "ping", from = "IDLE", to = "PONG" } },

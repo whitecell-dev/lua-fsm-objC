@@ -21,6 +21,9 @@ function MailboxFSM.create(opts)
 	local transition_map = Core.build_transition_map(opts.events or {})
 
 	-- Lua 5.1 math.random fix
+	-- KNOWN: reseeds the GLOBAL PRNG on every FSM construction, clobbering
+	-- randomness for every other FSM in the process and making auto-names
+	-- collide under load. Not behavior-neutral. (recon 7/B44)
 	math.randomseed(os.time())
 	math.random()
 	math.random()
@@ -127,6 +130,10 @@ function MailboxFSM.create(opts)
 		end
 
 		-- Transition collision check
+		-- KNOWN: this is a SUBSTRING test, not equality. An event named "step"
+		-- matches an in-flight "step1_LEAVE_WAIT" and resumes the wrong
+		-- transition. Making it structural changes matching semantics = a
+		-- feature change, so left as-is. (recon 7/B27)
 		if async_state ~= ABI.STATES.NONE and not string.find(async_state, event_name, 1, true) then
 			return ABI.error_result(
 				ABI.ERRORS.TRANSITION_IN_PROGRESS,
@@ -219,10 +226,16 @@ function MailboxFSM.create(opts)
 	function public_api.get_name()
 		return fsm_name
 	end
-	function public_api.can(event_name)
+	-- FIX: see the identical note in core/objc.lua:135. These were declared
+	-- dot-style but invoked with colon syntax everywhere, so `fsm:can(ev)` /
+	-- `fsm:is(state)` silently returned false (the FSM was passed as the
+	-- argument). Now self-taking, matching Core:can/Core:is (core/core.lua:425).
+	-- Confirmed zero dot-callers before changing. (recon 6/P4)
+	function public_api:can(event_name)
 		return can_transition_internal(event_name)
 	end
-	function public_api.is(state_name)
+
+	function public_api:is(state_name)
 		return current_state == state_name
 	end
 
@@ -335,6 +348,10 @@ function MailboxFSM.create(opts)
 					if not msg.no_retry and (msg.retry_count or 0) < 3 then
 						msg.retry_count = (msg.retry_count or 0) + 1
 						table.insert(retry_queue, msg)
+					else
+						-- KNOWN: after 3 failed attempts the message is SILENTLY
+						-- DISCARDED -- no return value, no log, no dead-letter
+						-- queue. Only the `failed` counter records it. (recon 7/B30)
 					end
 				end
 			end
@@ -392,6 +409,11 @@ function MailboxFSM.create(opts)
 	public_api.capabilities = caps
 
 	-- Export constants
+	-- KNOWN: same self-inconsistency as core/objc.lua. get_state(),
+	-- get_async_state(), get_name(), mailbox_stats(), clear_mailbox(),
+	-- set_mailbox_size(), process_mailbox() and resume() take NO self, so their
+	-- colon-style calls work only because Lua ignores the extra argument.
+	-- send() and (now) can()/is() are self-taking. (recon 7/B26)
 	public_api.ASYNC = ABI.STATES.ASYNC
 	public_api.NONE = ABI.STATES.NONE
 	public_api.STATES = ABI.STATES

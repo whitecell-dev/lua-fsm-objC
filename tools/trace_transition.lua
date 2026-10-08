@@ -1,3 +1,9 @@
+-- KNOWN: THIS FILE CANNOT LOAD. Line 2 requires "calyx_fsm_mailbox", a module
+-- deleted in commit 9470a9c (2026-02-11); nothing on disk provides it. It also
+-- reads machine.asyncState / machine.currentTransitioningEvent (:24-25), which
+-- live only on the closure FSMs' public surface. Unreferenced by anything.
+-- (recon 7/B32) NOT FIXED: restoring the old module API is a feature change.
+
 require("init")
 local machine_module = require("calyx_fsm_mailbox")
 

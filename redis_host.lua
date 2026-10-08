@@ -17,6 +17,12 @@ function RedisHost.new(host, port, agent_type)
 	self.fsms = {}
 	self.stats = {
 		total_events = 0,
+		-- KNOWN: successful_auth, failed_auth and logouts are NEVER INCREMENTED
+		-- anywhere in this file (only rejected_effects is, at :286), so
+		-- run_redis_demo.lua:50-52 always prints 0 for all three. sqlite_host.lua
+		-- DOES increment them (:406, :429, :445), so this is a copy-paste
+		-- omission, not a design choice. (recon 7/B7) NOT FIXED: wiring counters
+		-- into the event path is a behavior change.
 		successful_auth = 0,
 		failed_auth = 0,
 		logouts = 0,
@@ -304,7 +310,12 @@ function RedisHost:handle_event(user_id, event_name, event_data)
 		validated_effects[i] = cleaned
 	end
 
-	-- Phase 2: Execute ALL validated effects (all-or-nothing)
+	-- Phase 2: Execute all validated effects.
+	--
+	-- KNOWN: EXECUTION IS *NOT* ALL-OR-NOTHING -- validation above is atomic,
+	-- but this loop continues past failures and there is no Redis transaction
+	-- (see the "don't roll back" note below). Corrected from the old
+	-- "(all-or-nothing)" comment. (recon 8.5/8.6)
 	print("  [HOST] Executing Effects:")
 	for _, effect in ipairs(validated_effects) do
 		local result = self:execute_effect(effect)

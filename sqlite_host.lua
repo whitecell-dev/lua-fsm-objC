@@ -12,6 +12,9 @@ SQLiteHost.__index = SQLiteHost
 
 -- Configuration (can be overridden)
 local DEFAULT_CONFIG = {
+	-- KNOWN: STUB AUTH. Any user_id except 999 passes (below). run_demo.lua:23-25
+	-- substitutes `user_id >= 100 and user_id <= 199`. No host in this repo
+	-- performs real authentication. (recon 4.3)
 	authenticate = function(user_id)
 		return user_id and user_id ~= 999
 	end,
@@ -129,6 +132,10 @@ function SQLiteHost.new(db_path, config)
 
 		db_query = function(effect)
 			-- SQLite CAN execute queries (carefully)
+		-- KNOWN: the raw query goes straight into db:exec and its `nil, errmsg`
+		-- failure return is NEVER CHECKED, so a failed statement is still reported
+		-- as { ok = true }. The "carefully" in the comment above is not implemented.
+		-- (recon 7/B4)
 			local result = self.db:exec(effect.query)
 			return { ok = true, data = result }
 		end,
@@ -507,7 +514,7 @@ function SQLiteHost:handle_event(user_id, event_name, event_data)
 				agent_type = self.config.agent_type,
 			})
 
-			-- Return error - no effects executed (all-or-nothing)
+			-- Return error - no effects executed (VALIDATION is all-or-nothing)
 			return {
 				ok = false,
 				error = string.format("Effect validation failed: %s", err),
@@ -519,7 +526,14 @@ function SQLiteHost:handle_event(user_id, event_name, event_data)
 		validated_effects[i] = cleaned
 	end
 
-	-- Phase 2: Execute ALL validated effects (all-or-nothing)
+	-- Phase 2: Execute all validated effects.
+	--
+	-- KNOWN: EXECUTION IS *NOT* ALL-OR-NOTHING. Validation above is atomic, but
+	-- this loop continues past individual failures (see the [EFFECT FAILED]
+	-- branch below) and there is no BEGIN/COMMIT/ROLLBACK anywhere in this repo.
+	-- The old comment here said "(all-or-nothing)"; corrected because
+	-- run_nginx_demo.lua:171 printed the same false claim to the console.
+	-- Adding real transactions is a feature change. (recon 8.5/8.6)
 	if #validated_effects > 0 then
 		print("  [HOST] Effects:")
 		for _, effect in ipairs(validated_effects) do

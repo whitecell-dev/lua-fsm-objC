@@ -75,6 +75,12 @@ local effect_handlers = {
 			attributes = effect.attributes,
 			timestamp = ngx.now(),
 		})
+		-- KNOWN: ngx.shared.DICT has NO lpush/ltrim methods -- these calls raise
+		-- "attempt to call method 'lpush' (a nil value)" for any admin_agent trace
+		-- effect. mock_data.lua:60 documents the correct workaround ("no ltrim in
+		-- OpenResty") and does not make this mistake; nginx_host.lua does.
+		-- (recon 7/B6) NOT FIXED: rewriting trace storage changes host behavior and
+		-- cannot be verified here (no runnable nginx install).
 		cache_dict:lpush("trace:" .. effect.name, trace_entry)
 		cache_dict:ltrim("trace:" .. effect.name, 0, 99)
 		return { ok = true }

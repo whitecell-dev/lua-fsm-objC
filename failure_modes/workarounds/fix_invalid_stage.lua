@@ -1,3 +1,8 @@
+-- KNOWN: THIS FILE CANNOT LOAD. It requires "calyx_fsm_mailbox" (:4), a module
+-- deleted in commit 9470a9c. It is the "semantic bridge" the README used to
+-- claim as a verified working feature; nothing wires it in.
+-- (recon 8.1) NOT FIXED: porting it to the closure FSMs is a feature change.
+
 -- CALYX: Semantic Recovery + Async Drift Bridge for FSM instances
 -- This module implements a "Deep-Tissue" Proxy that heals state drift on read/write.
 

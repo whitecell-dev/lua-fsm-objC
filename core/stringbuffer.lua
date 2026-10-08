@@ -11,6 +11,10 @@
 
 local ABI = require("abi")
 
+-- KNOWN: NO CALLERS ANYWHERE IN THE REPO (recon 7/B31). It ships inside the
+-- generated bundle and is loadable, but nothing constructs a StringBuffer.
+-- Kept rather than deleted because it is embedded in calyx_bundle.lua.
+
 local StringBuffer = {}
 StringBuffer.__index = StringBuffer
 

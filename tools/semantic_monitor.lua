@@ -1,3 +1,10 @@
+-- KNOWN: UNREFERENCED, and semantically stale. :13 reads `#fsm.mailbox`, but
+-- core/core.lua has no `mailbox` field at all and objc FSMs expose no mailbox,
+-- so this raises "attempt to get length of a nil value" on any current FSM.
+-- It also rawset()s state the live frozen proxy (core/objc.lua:180,
+-- core/mailbox.lua:405) is designed to block. (recon 7/B34)
+-- NOT FIXED: reimplementing it against the closure API is a feature change.
+
 local Monitor = {}
 
 function Monitor.watch(fsm)

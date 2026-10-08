@@ -243,7 +243,10 @@ else
 end
 
 -- Check queue size after processing
-local after_stats = fsm:mailbox_stats and fsm:mailbox_stats() or {}
+-- FIX: `fsm:mailbox_stats` is not a valid Lua expression (a `:` call cannot be
+-- used as a method reference), which made this entire file a syntax error.
+-- Use `.` for the existence check. (recon 6/7)
+local after_stats = fsm.mailbox_stats and fsm:mailbox_stats() or {}
 local after_count = (type(after_stats) == "table" and after_stats.queued) or 
                     (fsm.mailbox and fsm.mailbox.count) or "unknown"
 print("Messages in queue after processing:", after_count)

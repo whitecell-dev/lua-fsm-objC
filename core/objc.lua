@@ -132,11 +132,20 @@ function ObjCFSM.create(opts)
 	end
 
 	-- Predicate checks
-	function public_api.can(event_name)
+	-- FIX: these were declared dot-style (`function public_api.can(event_name)`)
+	-- while every caller in the repo -- including sqlite_host.lua, redis_host.lua,
+	-- openresty/lualib/nginx_host.lua, LLM-OS/*, demo.lua and the breakage_suite
+	-- -- invokes them with COLON syntax. `fsm:can("activate")` therefore passed
+	-- the FSM as `event_name`, so can_transition looked up transition_map[fsm],
+	-- found nothing, and returned `false, nil` SILENTLY. Same for is().
+	-- Declared self-taking here to match (a) the calling convention used
+	-- everywhere and (b) Core:can / Core:is in core/core.lua:425,434.
+	-- Confirmed there were zero dot-callers before this change. (recon 6/P4)
+	function public_api:can(event_name)
 		return can_transition_internal(event_name)
 	end
 
-	function public_api.is(state_name)
+	function public_api:is(state_name)
 		return current_state == state_name
 	end
 
@@ -166,6 +175,14 @@ function ObjCFSM.create(opts)
 	public_api.capabilities = caps
 
 	-- Export constants (read-only)
+	--
+	-- KNOWN: the frozen API is INCONSISTENT about self. send(event, params) and
+	-- now can()/is() are self-taking (colon syntax). But get_state(), get_name(),
+	-- capabilities and mailbox_stats are NOT, so `fsm:get_state()` /
+	-- `fsm:mailbox_stats()` only work because Lua silently ignores the extra
+	-- argument. That is why the can/is bug above went unnoticed for so long.
+	-- Safe either way, but do not assume a method "taking an argument" means it
+	-- read it. (recon 7/B26 and this session's can/is fix)
 	public_api.ASYNC = ABI.STATES.ASYNC
 	public_api.NONE = ABI.STATES.NONE
 	public_api.STATES = ABI.STATES

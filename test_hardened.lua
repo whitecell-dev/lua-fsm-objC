@@ -347,6 +347,7 @@ Tests:run("Mailbox should handle 1000 messages without GC issues", function()
 		},
 	})
 
+	collectgarbage("collect")
 	local start_mem = collectgarbage("count")
 
 	-- Send 1000 messages
@@ -375,10 +376,23 @@ Tests:run("Mailbox should handle 1000 messages without GC issues", function()
 		)
 	)
 
+	collectgarbage("collect")
 	local end_mem = collectgarbage("count")
 	local mem_growth = end_mem - start_mem
 
-	-- Memory growth should be reasonable (< 500KB for 1000 messages)
+	-- Memory growth should be reasonable (< 500KB for 1000 messages).
+	--
+	-- FIX: this assertion was measuring the wrong thing. collectgarbage("count")
+	-- does NOT collect -- it only reports the heap -- so the delta absorbed all
+	-- uncollected garbage from the 13 tests before it. Measured that way it read
+	-- 444 KB on an unmodified checkout (89% of this limit) and swung +/-220 KB
+	-- purely on unrelated source-size changes, so the suite went red on any
+	-- growth in the codebase.
+	--
+	-- With collectgarbage("collect") before both readings the real cost of
+	-- holding 1000 messages is 24.82 KB, deterministic across runs and identical
+	-- on an unmodified checkout. The 500 KB threshold is left as-is; it is now
+	-- ~20x headroom over the true value rather than ~1.1x. (recon 6/P4)
 	assert(mem_growth < 500, string.format("Memory growth too high: %.2f KB", mem_growth))
 
 	-- Force GC to clean up

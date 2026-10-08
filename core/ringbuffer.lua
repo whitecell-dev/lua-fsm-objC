@@ -212,6 +212,10 @@ function RingBuffer:clear(only_non_retained)
 end
 
 function RingBuffer:set_max_size(new_size)
+	-- KNOWN: SHRINKING THE QUEUE SILENTLY DESTROYS MESSAGES. Any excess messages
+	-- are dequeued and dropped with no result, no error and no log unless
+	-- self.debug is set. Exposed publicly as set_mailbox_size
+	-- (core/mailbox.lua:368). (recon 7/B29)
 	if new_size < self.count then
 		-- Truncate excess messages
 		local excess = self.count - new_size

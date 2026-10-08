@@ -1,4 +1,4 @@
--- run_complete_demo.lua
+-- run_demo.lua
 -- Complete demo with extensive mock data and EFFECT CONTRACT integration
 
 local SQLiteHost = require("sqlite_host")
@@ -414,15 +414,26 @@ print("\n\n" .. "=" .. string.rep("=", 70))
 print("DEMO SUMMARY")
 print("=" .. string.rep("=", 70))
 
-print("\n✅ What was verified:")
-print("  1. FSM states correctly persisted to SQLite")
+-- FIX: this block is a list of UNCONDITIONAL print()s -- there are no
+-- assertions, no exit code, and nothing is compared. It prints identically
+-- whether or not anything worked. Two of the lines were also factually wrong
+-- (7 and 8, marked below). Retitled so it cannot be read as a test result.
+print("\nℹ️  What this run exercised (NOT verified -- no assertions are made):")
+print("  1. FSM states written to SQLite (observe the table dump above)")
 print("  2. User data stored as JSON in data column")
 print("  3. State transitions: logged_out → authenticating → authenticated/logged_out")
 print("  4. Data integrity maintained across sessions")
 print("  5. Multiple users isolated correctly")
 print("  6. Effect Contract validation working")
-print("  7. Mock data generation for all effect types")
-print("  8. Audit trail captures all significant events")
+-- KNOWN: `metric` effects are NEVER generated, because the effect's `type`
+-- field is used both as the effect discriminator and as the metric kind, so
+-- schemas.metric.validate always rejects it (effect_contract.lua:48-53). The
+-- duplicate `type =` key at :151/:154 below is a symptom of that collision,
+-- not its cause. See the KNOWN note on the `metric` schema.
+print("  7. Mock data generation -- EXCEPT metrics, which always yield 0")
+-- KNOWN: FSM transitions are NOT audited. Only the hand-written audit effects
+-- below and rejected-effect paths reach audit_log.
+print("  8. Audit trail -- hand-written audit effects only, not FSM transitions")
 
 print("\n📊 Final Mock Data Summary:")
 print(string.format("  • Users processed: %d", user_count))

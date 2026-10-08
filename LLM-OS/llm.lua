@@ -1,5 +1,5 @@
 -- ============================================================================
--- calyx/llm.lua - FIXED inspect function to see through frozen proxy
+-- LLM-OS/llm.lua - inspect an FSM for LLM context (sees through frozen proxy)
 -- ============================================================================
 
 local ABI = require("core.abi")

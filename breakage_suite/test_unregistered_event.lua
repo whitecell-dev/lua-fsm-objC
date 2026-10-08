@@ -1,4 +1,8 @@
 -- breakage_suite/test_unregistered_event.lua
+	-- FIX: dispatchers call callback(fsm, ctx) -- TWO args
+	-- (core/objc.lua:57-98, core/mailbox.lua:164-200). These were declared
+	-- as function(ctx), so `ctx` actually received the FSM table and any
+	-- ctx.data access raised "attempt to index field 'data' (a nil value)".
 local TestRunner = require("tools.test_runner")
 local runner = TestRunner.new()
 
@@ -24,7 +28,7 @@ runner:run("test_unregistered_event", function()
 			{ name = "stop", from = "RUNNING", to = "IDLE" },
 		},
 		callbacks = {
-			onleaveIDLE = function(ctx)
+			onleaveIDLE = function(fsm, ctx)
 				metric("simple_start_callback", true, "boolean")
 				return ASYNC
 			end,
@@ -190,9 +194,20 @@ runner:run("test_unregistered_event", function()
 	-- ============================================================================
 	log("Test 5: Event name collision with internal methods", "SECTION")
 
-	-- Create FSM with event names that might collide with internal methods
-	local collision_fsm = bundle.create({
-		name = "COLLISION_FSM",
+-- Create FSM with event names that might collide with internal methods
+-- FIX: needs kind="mailbox" -- this FSM is driven through :send()/:resume()/
+-- :process_mailbox() at :219-230, none of which exist on the default objc FSM.
+--
+-- NOTE ON WHAT THIS SECTION NOW MEASURES: the reserved-name guard is DEAD.
+-- Core.check_event_collision (core/core.lua:126) is the only enforcer of
+-- ABI.RESERVED and nothing calls it, so declaring events named send/resume/
+-- current is ACCEPTED and overwrites the mailbox FSM's own methods
+-- (core/mailbox.lua:240 assigns send, :382 reassigns it from the event loop).
+-- The assertions below therefore report real, unenforced behavior rather than
+-- the guard that the pre-9470a9c generation had. (recon 7/D1)
+local collision_fsm = bundle.create({
+	kind = "mailbox",
+	name = "COLLISION_FSM",
 		initial = "START",
 		events = {
 			{ name = "send", from = "START", to = "MIDDLE" }, -- Collides with send()
@@ -200,11 +215,11 @@ runner:run("test_unregistered_event", function()
 			{ name = "current", from = "END", to = "START" }, -- Collides with current property
 		},
 		callbacks = {
-			onleaveSTART = function(ctx)
+			onleaveSTART = function(fsm, ctx)
 				metric("collision_send_callback", true, "boolean")
 				return ASYNC
 			end,
-			onleaveMIDDLE = function(ctx)
+			onleaveMIDDLE = function(fsm, ctx)
 				metric("collision_resume_callback", true, "boolean")
 				return ASYNC
 			end,

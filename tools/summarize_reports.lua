@@ -1,4 +1,11 @@
 -- tools/summarize_reports.lua
+-- KNOWN: UNREFERENCED, and WRITES NOTHING (output goes to print only).
+-- It globs survival_reports/*.json, which includes test_summary.json itself, so
+-- it counts the summary as a test and double-counts embedded failures
+-- (:27 counts every `"id":` in a file, not just ones inside failures[]).
+-- Paths are cwd-relative, so it silently reports 0 tests from any other cwd.
+-- (recon 7/B37)
+
 -- Summarize all reports in the survival_reports directory
 
 local function read_json_file(filename)

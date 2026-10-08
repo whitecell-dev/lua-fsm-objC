@@ -1,11 +1,31 @@
 -- ============================================================================
--- calyx/validate.lua
+-- validate.lua
 -- CALYX Schema Validation & ABI Shape Enforcement
 -- Lua 5.1.5 Compatible
 -- ============================================================================
+--
+-- KNOWN: NO CALLERS (recon 7/B13). Nothing in the repo requires this module.
+-- Do not assume the running system validates configs through it -- it does
+-- not. bundle.create() (init.lua:70) goes straight to core/objc.lua:11 /
+-- core/mailbox.lua:11 with no schema validation at all, which is why
+-- breakage_suite/test_invalid_fsm_schema.lua fails 10 of 24 cases.
+--
+-- Not wired up because doing so would start rejecting FSM configs that
+-- currently load = a behavior/feature change.
+--
+-- KNOWN: `hardened` is required below but never used in this file.
+-- ============================================================================
 
-local hardened = require("hardened")
+local hardened = require("hardened") -- KNOWN: unused in this module (recon 7/B12)
 local ABI = require("core.abi")
+
+-- KNOWN: this used to call `Core.warn(...)`, but `Core` is never declared in
+-- this file, so the unreferenced-initial-state branch was a guaranteed
+-- nil-global call. Mirrors Core.warn's output format (core/core.lua:19)
+-- exactly so log output is unchanged. (recon 7/B11)
+local function warn(message, category)
+	print(string.format("[WARN %s] %s", string.upper(category or "general"), message))
+end
 
 local Validate = {}
 
@@ -172,7 +192,7 @@ function Validate.validate_fsm_config(config)
 			and config.initial ~= ABI.STATES.NONE
 			and config.initial ~= "none"
 		then
-			Core.warn("Initial state '" .. config.initial .. "' not referenced in any event", "validation")
+			warn("Initial state '" .. config.initial .. "' not referenced in any event", "validation")
 		end
 	end
 

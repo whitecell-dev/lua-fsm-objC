@@ -162,13 +162,23 @@ print("\n" .. "=" .. string.rep("=", 60))
 print("DEMO SUMMARY")
 print("=" .. string.rep("=", 60))
 
-print("\n✅ What was verified:")
-print("  1. FSM states correctly managed via HTTP")
-print("  2. Effect Contract validation working")
-print("  3. Cache_set/cache_delete effects via shared dict")
+-- FIX: same as run_demo.lua -- unconditional print()s, no assertions, no exit
+-- code. This prints even when nginx is not running.
+print("\nℹ️  What this run exercised (NOT verified -- no assertions are made):")
+print("  1. FSM state transitions over HTTP (see responses above)")
+print("  2. Effect Contract validation (see REJECTED lines above)")
+-- KNOWN: false by default. nginx_host.lua:22 defaults agent_type to
+-- "user_agent", whose capability set (effect_contract.lua:414-419) does NOT
+-- include cache_set, so validate_for_agent rejects the successful-login effect
+-- list and the request 400s. Only X-Agent-Type: admin_agent enables it.
+print("  3. Cache effects -- only reachable with X-Agent-Type: admin_agent")
 print("  4. Audit log via shared dict")
 print("  5. Capability scoping via HTTP headers")
-print("  6. All-or-nothing effect transactions")
+-- FIX: this printed "All-or-nothing effect transactions", which is false --
+-- nginx_host.lua:297-300 executes effects in a loop and DISCARDS the return
+-- value, with no transaction and no rollback. Validation is all-or-nothing;
+-- execution is not. (recon 8.6)
+print("  6. Effect VALIDATION is all-or-nothing (execution is not)")
 
 print("\n🎯 Nginx-Specific Features:")
 print("  • HTTP-native FSM interface")

@@ -1,6 +1,14 @@
 -- breakage_suite/test_mailbox_overflow.lua
 -- STRESS: enqueue + async limits under pressure
 
+-- mailbox.count is a plain numeric field on RingBuffer (core/ringbuffer.lua:24),
+-- not a method. Calling mailbox:count() raised "attempt to call method 'count'
+-- (a number value)". public_api.mailbox is the documented test hook
+-- (core/mailbox.lua:210); mailbox_stats().queued is the public alternative.
+	-- FIX: dispatchers call callback(fsm, ctx) -- TWO args
+	-- (core/objc.lua:57-98, core/mailbox.lua:164-200). These were declared
+	-- as function(ctx), so `ctx` actually received the FSM table and any
+	-- ctx.data access raised "attempt to index field 'data' (a nil value)".
 local bundle = require("init")
 local FSM = bundle.create
 local ASYNC = bundle.ASYNC
@@ -10,7 +18,11 @@ print("[BREAKAGE_SUITE] Starting mailbox overflow test...")
 -- ============================================================================
 -- TEST 1: RAPID-FIRE ENQUEUE (No Processing)
 -- ============================================================================
+-- FIX: all three FSMs here are driven through :send()/:process_mailbox().
+-- Without kind="mailbox" init.lua:80 defaults to "objc", which has no mailbox,
+-- so this script died at :26. (recon 6/7)
 local fsm1 = FSM({
+	kind = "mailbox",
 	name = "OVERFLOW_VICTIM",
 	initial = "IDLE",
 	events = {
@@ -30,13 +42,14 @@ for i = 1, 10000 do
 end
 
 local mid_mem = collectgarbage("count")
-print(string.format("  Messages: %d", fsm1.mailbox:count()))
+print(string.format("  Messages: %d", fsm1.mailbox.count))
 print(string.format("  Memory delta: +%.2f KB", mid_mem - start_mem))
 
 -- ============================================================================
 -- TEST 2: PROCESSING UNDER LOAD (Async Handlers)
 -- ============================================================================
 local fsm2 = FSM({
+	kind = "mailbox",
 	name = "ASYNC_STRESS",
 	initial = "A",
 	events = {
@@ -44,11 +57,11 @@ local fsm2 = FSM({
 		{ name = "finish", from = "B", to = "C" },
 	},
 	callbacks = {
-		onleaveA = function(ctx)
+		onleaveA = function(fsm, ctx)
 			print(string.format("  [STRESS] onleaveA async (msg #%d)", ctx.data.seq or 0))
 			return ASYNC -- Force async transition
 		end,
-		onleaveB = function(ctx)
+		onleaveB = function(fsm, ctx)
 			print(string.format("  [STRESS] onleaveB async (msg #%d)", ctx.data.seq or 0))
 			return ASYNC
 		end,
@@ -76,7 +89,7 @@ for i = 1, 100 do
 end
 
 print(string.format("  Total enqueued: %d", enqueued))
-print(string.format("  Mailbox backlog: %d", fsm2.mailbox:count()))
+print(string.format("  Mailbox backlog: %d", fsm2.mailbox.count))
 
 -- ============================================================================
 -- TEST 3: CONTEXT CORRUPTION DURING OVERFLOW
@@ -85,6 +98,7 @@ print("\n[PHASE 3] Testing context preservation under overflow...")
 
 local corruption_detected = false
 local fsm3 = FSM({
+	kind = "mailbox",
 	name = "CONTEXT_TEST",
 	initial = "READY",
 	events = {
@@ -92,7 +106,7 @@ local fsm3 = FSM({
 		{ name = "process", from = "LOADING", to = "PROCESSING" },
 	},
 	callbacks = {
-		onstatechange = function(ctx)
+		onstatechange = function(fsm, ctx)
 			-- Check for context corruption
 			if ctx.synthetic or ctx.injected_at then
 				corruption_detected = true
@@ -131,7 +145,7 @@ print("  [CLEANUP] Clearing all mailbox queues...")
 -- Clear fsm1 mailbox (has 1000 unprocessed messages from Phase 1)
 local fsm1_cleared = 0
 if fsm1.mailbox then
-	fsm1_cleared = fsm1.mailbox:count()
+	fsm1_cleared = fsm1.mailbox.count
 	fsm1:clear_mailbox() -- Clear all messages
 	print(string.format("    Cleared %d messages from OVERFLOW_VICTIM", fsm1_cleared))
 end
@@ -139,7 +153,7 @@ end
 -- Clear fsm2 mailbox (should be empty but verify)
 local fsm2_cleared = 0
 if fsm2.mailbox then
-	fsm2_cleared = fsm2.mailbox:count()
+	fsm2_cleared = fsm2.mailbox.count
 	if fsm2_cleared > 0 then
 		fsm2:clear_mailbox()
 		print(string.format("    Cleared %d messages from ASYNC_STRESS", fsm2_cleared))
@@ -149,7 +163,7 @@ end
 -- Clear fsm3 mailbox
 local fsm3_cleared = 0
 if fsm3.mailbox then
-	fsm3_cleared = fsm3.mailbox:count()
+	fsm3_cleared = fsm3.mailbox.count
 	if fsm3_cleared > 0 then
 		fsm3:clear_mailbox()
 		print(string.format("    Cleared %d messages from CONTEXT_TEST", fsm3_cleared))
@@ -172,13 +186,13 @@ print(string.format("  Total growth: %.2f KB", final_mem - start_mem))
 -- Check if messages are actually being retained
 local retained_refs = 0
 if fsm1.mailbox then
-	retained_refs = retained_refs + fsm1.mailbox:count()
+	retained_refs = retained_refs + fsm1.mailbox.count
 end
 if fsm2.mailbox then
-	retained_refs = retained_refs + fsm2.mailbox:count()
+	retained_refs = retained_refs + fsm2.mailbox.count
 end
 if fsm3.mailbox then
-	retained_refs = retained_refs + fsm3.mailbox:count()
+	retained_refs = retained_refs + fsm3.mailbox.count
 end
 
 print(string.format("  Retained message references after cleanup: %d", retained_refs))

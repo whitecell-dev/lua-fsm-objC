@@ -1,7 +1,16 @@
 -- effect_contract.lua
 -- CALYX EFFECT CONTRACT - Execution ABI v1.0
 -- Defines the complete algebra of what effects can be expressed
--- Every host adapter MUST implement this contract exactly
+--
+-- HOST ADAPTERS: every host uses these validators (validate / validate_batch /
+-- validate_for_agent) and defines its OWN private execute_effect.
+-- KNOWN: the `EffectContract.execute` stub at the bottom of this file claims
+-- "Every host adapter MUST implement this function", but NOTHING calls it and
+-- NO host implements it -- each defines a private dispatcher instead
+-- (sqlite_host.lua:375, redis_host.lua:197,
+-- openresty/lualib/nginx_host.lua:154, openresty/lualib/mock_data.lua:42).
+-- It is unreachable and always errors. Left as the declared host ABI; do not
+-- call it. (recon 8.6)
 
 local EffectContract = {}
 
@@ -45,6 +54,14 @@ EffectContract.schemas = {
 		end,
 	},
 
+	-- KNOWN: THIS EFFECT TYPE IS UNSATISFIABLE AS WRITTEN. `effect.type` is used
+	-- both as the effect discriminator (looked up at :348 to find THIS schema)
+	-- AND as the metric kind, which this validator then requires to be one of
+	-- counter/gauge/histogram. Since the lookup demands "metric", the kind check
+	-- can never pass. Symptom: run_demo.lua and mock_data.lua both declare
+	-- `type` twice, and both always generate 0 metrics. Fixing it means either
+	-- renaming the discriminator or moving the kind to another field -- a
+	-- contract/wire-format change, out of scope here. (recon 7/B5)
 	metric = {
 		type = "metric",
 		description = "Emit a telemetry metric (counter, gauge, histogram)",
@@ -175,11 +192,28 @@ EffectContract.schemas = {
 				return false, "missing or invalid query"
 			end
 			local upper_query = string.upper(e.query)
-			-- Block dangerous operations unless explicitly allowed
+			-- Block dangerous operations unless the caller explicitly opts out.
+			--
+			-- FIX: the condition was `if not e.read_only then ... end`, which made
+			-- the guard INVERTED relative to its own message and to the field
+			-- name: writes were blocked in BOTH the default case AND the
+			-- documented `read_only = false` override, while `read_only = true`
+			-- (which reads like "be extra careful") was the only value that
+			-- allowed them. Now: default (absent/nil) blocks; an explicit
+			-- read_only = false is the documented override; read_only = true also
+			-- allows (harmless, and preserves the old accidental behavior).
+			-- No host sets `read_only`, so no existing call site changes.
+			--
+			-- KNOWN: this is still a NAIVE SUBSTRING match, not a token match, so
+			-- a benign "SELECT ... updated_at ..." trips UPDATE (updated_at is a
+			-- column in this repo's own schema, sqlite_host.lua:218,231,268), and
+			-- ATTACH / PRAGMA / VACUUM / REINDEX / BEGIN are not covered at all.
+			-- Making it structural means tokenizing SQL, which is a contract
+			-- change -- out of scope here. (recon 7/B3)
 			local dangerous = { "DROP", "DELETE", "TRUNCATE", "ALTER", "CREATE", "INSERT", "UPDATE" }
 			for _, word in ipairs(dangerous) do
 				if string.find(upper_query, word) then
-					if not e.read_only then
+					if e.read_only == nil or e.read_only then
 						return false,
 							string.format("dangerous write query blocked: %s (use read_only=false to override)", word)
 					end
@@ -544,6 +578,8 @@ end
 -- HOST ADAPTER INTERFACE
 -- ============================================================================
 -- Every host adapter MUST implement this function
+-- KNOWN: no adapter does, and nothing calls this. See the note at the top of
+-- this file. (recon 8.6)
 -- @param effect: validated effect table
 -- @param host_context: host-specific context (e.g., db connection, nginx ctx)
 -- @return: result table with 'ok' and optional 'data' or 'error'
