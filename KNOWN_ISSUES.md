@@ -20,6 +20,11 @@ Recorded so nobody "fixes" them again or assumes they were always right.
 | 3 tests could not run at all | `test_mailbox_debug.lua` was a syntax error; `test_context_loss.lua` and `test_mailbox_overflow.lua` crashed | see each test's inline `FIX:` note |
 | Callback arity drift in tests | 15 callbacks declared `function(ctx)` while dispatchers pass `(fsm, ctx)` | corrected in all 4 affected tests |
 | `test_hardened.lua` memory assertion | measured uncollected garbage; read 444 KB on a clean checkout against a 500 KB limit | `collectgarbage("collect")` before both readings; real value is 24.82 KB, `test_hardened.lua:382-396` |
+| `email` effect validation rejected every address | pattern used `{2,}`, which Lua patterns do not support (`* + - ?` only), so `{2,}` matched literally and 100% of addresses failed — `/mock/emails` always generated 0 | `[a-zA-Z]+`, `effect_contract.lua:292` |
+| `/stats` and `/debug` returned HTTP 500 | both called `ngx.start_time()`, which does not exist in ngx_lua | per-worker `worker_start_time`, `openresty/nginx.conf` |
+| `/fsm/` was served from a stale installed copy | `content_by_lua_file` pointed at `/usr/local/openresty/site/lualib`, not the repo | points into the read-only `/app` mount |
+| Container could not resolve its own `resty.core` | replacing the image's `nginx.conf` dropped the `lua_package_path` the OpenResty image would otherwise set | `/usr/local/openresty/lualib/?.lua` added explicitly |
+| `os.getenv` was never called anywhere in the repo | the container's `CALYX_*` variables would have been inert | opt-in env plumbing added; defaults unchanged |
 
 ---
 
@@ -40,6 +45,9 @@ Recorded so nobody "fixes" them again or assumes they were always right.
 * `core/abi.lua` — 7 of 17 `ERRORS` codes are never produced by any code path.
 
 ### Guards that cannot be reasoned about correctly
+* `nginx_host.lua:240` — the `user_id == 123 or 456` stub auth also means the smoke test
+  must use a *different* user for each /fsm/ check; re-using one makes the test
+  order-dependent and it fails for the wrong reason (it did, once).
 * `effect_contract.lua` — `db_query` keyword check is a substring match, so a benign
   `SELECT ... updated_at ...` trips `UPDATE`; `ATTACH` / `PRAGMA` / `VACUUM` / `REINDEX`
   are not covered at all.
@@ -78,9 +86,10 @@ Recorded so nobody "fixes" them again or assumes they were always right.
 * `LLM-OS/chat.lua` — EOF on `io.read()` loops forever.
 
 ### OpenResty
-* `openresty/nginx.conf:8` — `lua_package_path` excludes the repo root and points at
-  `/usr/local/openresty/site/lualib/`, which nothing creates. The `/contract`, `/fsm/` and
-  `/mock/*` endpoints cannot resolve their requires as shipped.
+* ~~`openresty/nginx.conf:8` — `lua_package_path` excludes the repo root~~ **FIXED 2026-10-07.**
+  It now points into the read-only `/app` mount; see the Fixed table above. What remains
+  is that the paths are literal: nginx cannot substitute env vars into `lua_package_path`,
+  so a bare-metal install must edit them or run `tools/sync_lualib.sh`.
 * `openresty/lualib/nginx_host.lua` — calls `lpush`/`ltrim` on an `ngx.shared.DICT`, which
   has neither.
 * `openresty/lualib/stream_mock.lua` — `duration` / `interval` are unbounded query params

@@ -1,0 +1,102 @@
+# CALYX FSM -- local deployment stack
+#
+# Three services, separated so the trust boundaries are visible in the file:
+#
+#   openresty   runs the FSM + effect-contract host. The repo is mounted
+#               READ-ONLY, so the Lua code cannot write to itself and there is
+#               no installed copy of the .lua files to drift out of sync.
+#   redis       FSM persistence + effect queues. No persistence on disk.
+#   sqlite-init prepares the /data volume so the openresty user can write the DB.
+#
+# Bring up:   docker compose up -d
+# Smoke test: docker compose run --rm smoke
+# Tear down:  docker compose down -v
+#
+# KNOWN LIMITATION (read this before trusting the FSM endpoint):
+#   /fsm/ returns HTTP 400 for a default request. nginx_host.lua defaults
+#   agent_type to "user_agent", whose capability set (effect_contract.lua)
+#   does NOT include cache_set, but the successful-login effect list includes
+#   it -- so the whole batch is rejected. Pass `X-Agent-Type: admin_agent` and
+#   it returns 200 / state=authenticated. This is a product decision about
+#   capability scoping, not a container problem. Tracked in KNOWN_ISSUES.md.
+#
+services:
+  openresty:
+    build:
+      context: ./openresty
+    ports:
+      # Host port is overridable; 8080 is the documented default.
+      #   CALYX_PORT=8081 docker-compose up -d
+      - "${CALYX_PORT:-8080}:8080"
+    volumes:
+      # Read-only. See the note at the top of this file.
+      - ./:/app:ro
+      - calyx-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      sqlite-init:
+        condition: service_completed_successfully
+    environment:
+      # Read by redis_host.lua:17-19 and sqlite_host.lua:32 ONLY when the
+      # corresponding constructor argument is absent. Defaults are unchanged,
+      # so the bare-metal demos behave exactly as before.
+      # Without these, redis_host would try 127.0.0.1:6379 -- which inside this
+      # container is NOT the redis service.
+      CALYX_REDIS_HOST: redis
+      CALYX_REDIS_PORT: "6379"
+      CALYX_SQLITE_PATH: /data/calyx.db
+      # See init.lua:14-45. Default is ENABLED (current behaviour). This is set
+      # to "off" only because OpenResty's Lua state is shared with third-party
+      # libraries that may create globals lazily.
+      #
+      # HONEST NOTE: this was NOT observed to be necessary. Strict mode was
+      # measured working against all endpoints on OpenResty 1.31.1.1 with the
+      # firewall ON. It is set to "off" as insurance against a library loaded
+      # later, not as a fix for a failure. Flip to "on" and re-run the smoke
+      # test if you would rather keep the firewall.
+      CALYX_STRICT_MODE: "off"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # No persistence: run_redis_demo.lua calls FLUSHALL on startup anyway, and
+    # this stack is for exercising the host adapter, not for keeping data.
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # sqlite_host.lua runs CREATE TABLE IF NOT EXISTS on open, so no schema is
+  # needed here -- this service exists only to create the file with ownership
+  # the openresty user can write.
+  sqlite-init:
+    image: alpine:3.20
+    volumes:
+      - calyx-data:/data
+    command: sh -c "touch /data/calyx.db && chmod 666 /data/calyx.db && echo 'sqlite volume ready'"
+
+  # One-shot verification. Mirrors the checks that were run against a real
+  # OpenResty 1.31.1.1 instance. The script lives in a file rather than inline
+  # so that compose does not try to interpolate the shell variables in it.
+  smoke:
+    image: alpine:3.20
+    depends_on:
+      openresty:
+        condition: service_started
+    volumes:
+      - ./openresty/smoke.sh:/smoke.sh:ro
+      - ./:/app:ro
+    environment:
+      BASE: http://openresty:8080
+      # Passed through so check 9 can prove the redis_host.lua env plumbing.
+      CALYX_REDIS_HOST: redis
+      CALYX_REDIS_PORT: "6379"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["apk add --no-cache curl redis >/dev/null && sh /smoke.sh"]
+
+volumes:
+  calyx-data:

@@ -29,7 +29,11 @@ function SQLiteHost.new(db_path, config)
 		self.config[k] = config and config[k] or v
 	end
 
-	self.db = lsqlite3.open(db_path)
+	-- OPTIONAL env override, used only when db_path is absent.
+	-- Default is unchanged ("session_demo.db", cwd-relative), so run_demo.lua
+	-- behaves exactly as before.
+	-- Precedence: explicit db_path > CALYX_SQLITE_PATH > "session_demo.db"
+	self.db = lsqlite3.open(db_path or os.getenv("CALYX_SQLITE_PATH") or "session_demo.db")
 	self:setup_database()
 
 	self.fsms = {}

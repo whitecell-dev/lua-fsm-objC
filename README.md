@@ -67,12 +67,44 @@ tools/sync_lualib.sh [DEST]     # default /usr/local/openresty/site/lualib
 tools/sync_lualib.sh --check    # non-zero exit = the installed copy has drifted
 ```
 
+Two environment variables are honoured, and **only** when the matching constructor
+argument is absent, so every existing caller is unaffected:
+
+| Variable | Read by | Default |
+| --- | --- | --- |
+| `CALYX_REDIS_HOST`, `CALYX_REDIS_PORT` | `redis_host.lua:19-20` | `127.0.0.1`, `6379` |
+| `CALYX_SQLITE_PATH` | `sqlite_host.lua:36` | `session_demo.db` |
+| `CALYX_STRICT_MODE` | `init.lua:32-45` | enabled (set `off`/`0`/`false`/`no` to disable) |
 ```
 
-**OpenResty caveat:** `openresty/nginx.conf:8` sets a `lua_package_path` that does **not**
-include the repo root and points at `/usr/local/openresty/site/lualib/`, which nothing in
-this repo creates. As shipped the `/contract`, `/fsm/` and `/mock/*` endpoints cannot
-resolve `require("effect_contract")` or `require("init")`. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+## 🐳 Container
+
+There is a working deployment stack. It was verified end to end, not just written:
+
+```sh
+docker-compose up -d --build
+docker-compose run --rm smoke        # 13 checks against the live stack
+docker-compose down -v
+# host port is overridable: CALYX_PORT=8081 docker-compose up -d
+```
+
+* `openresty/Dockerfile` — OpenResty 1.27.1.2 + cjson, lsqlite3, luafilesystem, redis-lua.
+* `openresty/nginx.conf` — `lua_package_path` and `content_by_lua_file` point **into the
+  read-only `/app` mount**, not at an installed copy. See "Why read-only" below.
+* `openresty/smoke.sh` — 13 checks, also runnable against a local instance:
+  `BASE=http://127.0.0.1:8099 sh openresty/smoke.sh`.
+* `tools/sync_lualib.sh` — bare-metal install, with `--check` to detect drift.
+
+**Why read-only matters:** on the machine this was built on, `/usr/local/openresty/site/lualib`
+held a *stale duplicate* of these Lua files that had silently drifted from the repo — every
+file was out of date, and `/fsm/` was being served from that stale copy rather than the repo.
+Mounting the repo read-only removes the entire class of bug: there is no second copy to rot.
+
+**One endpoint is still broken by design:** `/fsm/` returns **HTTP 400** for a default
+request. `nginx_host.lua` defaults `agent_type` to `user_agent`, which cannot emit `cache_set`,
+but the successful-login effect list includes it — so the batch is rejected. Pass
+`X-Agent-Type: admin_agent` and it returns `200 / state=authenticated`. That is a
+capability-scoping decision, not a container problem. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ---
 
@@ -106,6 +138,9 @@ These are **real, measured** gaps — not aspirations. Each has a reproducing te
 | Shrinking the mailbox silently destroys queued messages | **KNOWN, not fixed** | `core/ringbuffer.lua:214-232` |
 | Message silently discarded after 3 failed retries | **KNOWN, not fixed** | `core/mailbox.lua:351-355` |
 | `metric` effect type is unsatisfiable — `type` is both the effect discriminator and the metric kind | **KNOWN, not fixed** | `effect_contract.lua:65-87`; both mock generators always yield 0 metrics |
+| `/stats` and `/debug` returned HTTP 500 on every request | **FIXED 2026-10-07** | both called `ngx.start_time()`, which does not exist in ngx_lua |
+| `email` effect validation rejected **100%** of addresses | **FIXED 2026-10-07** | pattern used `{2,}`, a quantifier Lua patterns do not have |
+| `/fsm/` served from a stale installed copy of the repo | **FIXED 2026-10-07** | `content_by_lua_file` pointed at `/usr/local/openresty/site/lualib`, not the repo |
 | Strict mode blocks *creating* globals but permits *overwriting* existing ones | **KNOWN, not fixed** | `hardened.lua` — `_G.print = x` succeeds |
 | No real authentication in any host | **KNOWN, not fixed** | `sqlite_host.lua:19` (`user_id ~= 999`), `nginx_host.lua:240` (`id == 123 or 456`) |
 
@@ -190,6 +225,7 @@ lua-fsm-objC/
 | `NO MORE LIES` — context enforcement | **PARTIAL** | error Results are returned, but async resume still matches by substring (`core/mailbox.lua:137`) |
 | `GUARD` — frozen APIs | **PARTIALLY TRUE** | three `__newindex` guards exist, but `fsm:can()`/`fsm:is()` were silently broken until 2026-10-07, which shows how little the guards covered |
 | Async transitions are safe | **MOSTLY** | self-contained in `core/mailbox.lua:71-118`; the old "semantic bridge" is a deleted mechanism, not a requirement |
+| Email address validation | **ENFORCED (was silently broken)** | `effect_contract.lua:292`; the `{2,}` quantifier does not exist in Lua patterns, so until 2026-10-07 it rejected every address |
 | Effect execution is all-or-nothing | **FALSE** | validation is atomic; **execution is not**. `sqlite_host.lua:539-562`, `redis_host.lua:320-338`, `nginx_host.lua:304` |
 | LLM-compatible structure | **UNVERIFIED** | `LLM-OS/` feeds FSM context to a model but nothing verifies comprehension |
 

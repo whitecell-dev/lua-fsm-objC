@@ -283,7 +283,13 @@ EffectContract.schemas = {
 				return false, "missing to or subject"
 			end
 			-- Validate email format
-			local email_pattern = "^[%w._%%+-]+@[%w.-]+%.[a-zA-Z]{2,}$"
+			-- FIX: this was "^[%w._%%+-]+@[%w.-]+%.[a-zA-Z]{2,}$". Lua patterns have NO
+			-- {n,m} quantifier (only * + - ?), so "{2,}" was matched as a literal
+			-- character sequence and this pattern rejected 100% of addresses,
+			-- valid or not. Confirmed: validate{type="email",to="a@b.com"} returned
+			-- false, which made the whole email effect type unreachable and made
+			-- /mock/emails always generate 0. (recon 6/8 -- missed by both passes)
+			local email_pattern = "^[%w._%%+-]+@[%w.-]+%.[a-zA-Z]+$"
 			if not e.to:match(email_pattern) then
 				return false, string.format("invalid recipient email: %s", e.to)
 			end

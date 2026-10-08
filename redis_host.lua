@@ -12,7 +12,13 @@ RedisHost.__index = RedisHost
 
 function RedisHost.new(host, port, agent_type)
 	local self = setmetatable({}, RedisHost)
-	self.client = redis.connect(host or "127.0.0.1", port or 6379)
+	-- OPTIONAL env override, used only when the argument is absent. Defaults are
+	-- unchanged, so every existing caller behaves exactly as before.
+	-- Precedence: explicit argument > CALYX_REDIS_HOST > "127.0.0.1"
+	--             CALYX_REDIS_PORT (parsed) > explicit port > 6379
+	local env_host = os.getenv("CALYX_REDIS_HOST")
+	local env_port = tonumber(os.getenv("CALYX_REDIS_PORT") or "")
+	self.client = redis.connect(host or env_host or "127.0.0.1", port or env_port or 6379)
 	self.agent_type = agent_type or "user_agent" -- NEW: capability scope
 	self.fsms = {}
 	self.stats = {

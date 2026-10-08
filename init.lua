@@ -13,8 +13,33 @@ local hardened = require("hardened")
 -- ---------------------------------------------------------------------------
 -- 2. ENABLE SEMANTIC FIREWALL
 -- Prevents accidental global leakage after this point.
+--
+-- The firewall installs a metatable on _G and never removes it, so it is a
+-- process-wide side effect that outlives this module.
+--
+-- CALYX_STRICT_MODE lets a host opt out. Accepted disabled values:
+-- "0", "false", "off", "no" (case-insensitive, surrounding space ignored).
+-- DEFAULT IS ENABLED, so behaviour is unchanged unless you opt out.
+--
+-- STATUS, measured 2026-10-07 against OpenResty 1.31.1.1: this firewall does
+-- NOT currently break OpenResty. All 8 endpoints were exercised with it on --
+-- it installed, the bundle loaded, and /fsm/ dispatched a transition
+-- successfully. The opt-out is therefore INSURANCE, not a fix for an observed
+-- failure: it exists because strict mode errors on any *newly created* global,
+-- so a third-party library loaded into the same Lua state later (inside a
+-- worker, or on a code path not yet exercised) would raise rather than warn.
 -- ---------------------------------------------------------------------------
-hardened.enable_strict_mode()
+local _strict_env = (os.getenv("CALYX_STRICT_MODE") or ""):lower():gsub("^%s*(.-)%s*$", "%1")
+local _strict_disabled = _strict_env == "0" or _strict_env == "false" or _strict_env == "off" or _strict_env == "no"
+
+if _strict_disabled then
+	print("[LAB_INIT] CALYX_STRICT_MODE=" .. _strict_env .. " -- global-variable firewall DISABLED")
+else
+	hardened.enable_strict_mode()
+	if _strict_env ~= "" then
+		print("[LAB_INIT] CALYX_STRICT_MODE=" .. _strict_env .. " -- global-variable firewall ENABLED")
+	end
+end
 
 -- ---------------------------------------------------------------------------
 -- 3. DEFINE BUNDLE ABI (SHAPE CONTRACT)
