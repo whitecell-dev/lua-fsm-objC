@@ -1,0 +1,22 @@
+# StyLua configuration for CALYX (Lua Edition)
+# Defaults verified against the repo 2026-10-12: sources are already
+# tab-indented, double-quoted, paren-called, and within 120 columns, so
+# adopting these defaults is low-churn. See CONTRIBUTING.md and BASELINE_LINT.md.
+# Full option reference: https://github.com/JohnnyMorganz/StyLua
+
+syntax = "Lua51" # matches .luacheckrc std="lua51"; avoids All-union ambiguities
+column_width = 120 # matches .luacheckrc max_line_length = 120
+line_endings = "Unix"
+indent_type = "Tabs"
+indent_width = 4
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"
+collapse_simple_statement = "Never"
+space_after_function_names = "Never"
+block_newline_gaps = "Never"
+
+# sort_requires stays OFF for now: multi-require hosts are unsorted
+# (sqlite_host.lua, redis_host.lua) and require-var case is inconsistent
+# (mailbox.lua `utils` vs objc.lua `Utils`). Normalize first, then enable.
+[sort_requires]
+enabled = false

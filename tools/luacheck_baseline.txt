@@ -1,0 +1,360 @@
+Checking LLM-OS/chat.lua                          1 warning
+
+    LLM-OS/chat.lua:39:1: accessing undefined variable vim
+
+Checking LLM-OS/llm.lua                           2 warnings
+
+    LLM-OS/llm.lua:6:7: unused variable CALYX
+    LLM-OS/llm.lua:11:2: value assigned to variable opts is unused
+
+Checking LLM-OS/ollama.lua                        3 warnings
+
+    LLM-OS/ollama.lua:6:7: unused variable ABI
+    LLM-OS/ollama.lua:108:16: unused function extract_command
+    LLM-OS/ollama.lua:364:9: unused variable response
+
+Checking breakage_suite/test_context_loss.lua     36 warnings
+
+    breakage_suite/test_context_loss.lua:15:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:16:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:21:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:39:5: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:43:5: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:47:5: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:51:5: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:55:5: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:63:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:68:4: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:72:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:77:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:117:4: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:131:4: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:140:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:141:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:142:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:143:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:148:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:171:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:172:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:174:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:180:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:181:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:184:3: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:185:3: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:189:2: accessing undefined variable warn
+    breakage_suite/test_context_loss.lua:195:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:227:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:228:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:229:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:230:2: accessing undefined variable metric
+    breakage_suite/test_context_loss.lua:233:3: accessing undefined variable fail
+    breakage_suite/test_context_loss.lua:241:3: accessing undefined variable warn
+    breakage_suite/test_context_loss.lua:244:2: accessing undefined variable log
+    breakage_suite/test_context_loss.lua:245:2: accessing undefined variable metric
+
+Checking breakage_suite/test_example_professional.lua 12 warnings
+
+    breakage_suite/test_example_professional.lua:13:2: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:26:3: accessing undefined variable fail
+    breakage_suite/test_example_professional.lua:36:2: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:37:2: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:41:2: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:44:3: accessing undefined variable fail
+    breakage_suite/test_example_professional.lua:55:3: accessing undefined variable warn
+    breakage_suite/test_example_professional.lua:58:3: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:62:4: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:65:5: accessing undefined variable warn
+    breakage_suite/test_example_professional.lua:76:2: accessing undefined variable metric
+    breakage_suite/test_example_professional.lua:83:2: accessing undefined variable log
+
+Checking breakage_suite/test_invalid_fsm_schema.lua OK
+Checking breakage_suite/test_mailbox_debug.lua    27 warnings
+
+    breakage_suite/test_mailbox_debug.lua:32:39: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:34:24: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:75:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:88:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:93:85: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:103:47: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:104:54: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:106:46: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:107:62: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:114:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:117:82: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:122:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:129:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:162:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:174:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:179:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:183:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:206:80: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:221:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:227:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:234:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:250:77: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:262:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:269:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:277:1: line contains only whitespace
+    breakage_suite/test_mailbox_debug.lua:294:50: line contains trailing whitespace
+    breakage_suite/test_mailbox_debug.lua:325:7: unused variable test_report
+
+Checking breakage_suite/test_mailbox_overflow.lua OK
+Checking breakage_suite/test_reporting_demo.lua   2 warnings
+
+    breakage_suite/test_reporting_demo.lua:69:7: variable big_table is mutated but never accessed
+    breakage_suite/test_reporting_demo.lua:90:7: unused variable test_report
+
+Checking breakage_suite/test_unregistered_event.lua 61 warnings
+
+    breakage_suite/test_unregistered_event.lua:15:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:16:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:21:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:32:5: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:43:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:44:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:47:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:48:3: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:52:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:54:4: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:63:3: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:75:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:82:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:83:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:86:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:87:3: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:98:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:100:4: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:111:4: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:119:4: accessing undefined variable warn
+    breakage_suite/test_unregistered_event.lua:123:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:130:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:140:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:141:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:145:4: accessing undefined variable warn
+    breakage_suite/test_unregistered_event.lua:146:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:151:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:154:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:155:3: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:161:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:175:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:176:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:179:3: accessing undefined variable warn
+    breakage_suite/test_unregistered_event.lua:180:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:188:3: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:189:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:195:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:219:5: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:223:5: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:231:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:235:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:238:4: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:242:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:245:5: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:247:5: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:256:4: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:265:3: accessing undefined variable fail
+    breakage_suite/test_unregistered_event.lua:277:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:293:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:294:2: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:297:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:298:3: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:300:3: accessing undefined variable warn
+    breakage_suite/test_unregistered_event.lua:301:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:307:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:332:3: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:335:4: accessing undefined variable metric
+    breakage_suite/test_unregistered_event.lua:336:4: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:338:4: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:342:2: accessing undefined variable log
+    breakage_suite/test_unregistered_event.lua:343:2: accessing undefined variable metric
+
+Checking bundler.lua                              4 warnings
+
+    bundler.lua:277:4: setting read-only field preload.abi of global package
+    bundler.lua:281:4: setting read-only field preload.core.abi of global package
+    bundler.lua:282:4: setting read-only field preload.lua-fsm-objC.abi of global package
+    bundler.lua:283:4: setting read-only field preload.? of global package
+
+Checking core/abi.lua                             OK
+Checking core/core.lua                            OK
+Checking core/mailbox.lua                         1 warning
+
+    core/mailbox.lua:351:6: empty if branch
+
+Checking core/objc.lua                            OK
+Checking core/ringbuffer.lua                      OK
+Checking core/stringbuffer.lua                    OK
+Checking core/utils.lua                           OK
+Checking demo.lua                                 5 warnings
+
+    demo.lua:103:8: shadowing definition of variable result on line 53
+    demo.lua:126:7: variable result was previously defined on line 53
+    demo.lua:203:7: variable fsm was previously defined on line 163
+    demo.lua:254:8: shadowing definition of variable result on line 126
+    demo.lua:267:7: variable result was previously defined on line 126
+
+Checking effect_contract.lua                      OK
+Checking failure_modes/workarounds/calyx_sil.lua  OK
+Checking failure_modes/workarounds/fix_invalid_stage.lua 4 warnings
+
+    failure_modes/workarounds/fix_invalid_stage.lua:32:1: line contains only whitespace
+    failure_modes/workarounds/fix_invalid_stage.lua:61:1: line contains only whitespace
+    failure_modes/workarounds/fix_invalid_stage.lua:63:1: line contains only whitespace
+    failure_modes/workarounds/fix_invalid_stage.lua:67:1: line contains only whitespace
+
+Checking hardened.lua                             1 warning
+
+    hardened.lua:599:42: empty if branch
+
+Checking init.lua                                 OK
+Checking openresty/lualib/calyx/session_fsm.lua   OK
+Checking openresty/lualib/mock_data.lua           15 warnings
+
+    openresty/lualib/mock_data.lua:8:15: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:10:3: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:10:11: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:44:3: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:44:11: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:64:17: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:86:17: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:94:3: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:94:11: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:160:4: value assigned to field type is overwritten on line 163 before use
+    openresty/lualib/mock_data.lua:166:13: unused variable err
+    openresty/lualib/mock_data.lua:184:29: accessing undefined variable ngx
+    openresty/lualib/mock_data.lua:188:13: unused variable err
+    openresty/lualib/mock_data.lua:211:13: unused variable err
+    openresty/lualib/mock_data.lua:247:15: accessing undefined variable ngx
+
+Checking openresty/lualib/nginx_host.lua          54 warnings
+
+    openresty/lualib/nginx_host.lua:11:20: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:12:19: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:13:20: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:14:20: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:18:16: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:18:45: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:37:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:37:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:46:15: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:47:12: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:54:2: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:54:10: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:60:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:60:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:76:16: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:118:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:118:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:124:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:124:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:129:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:129:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:134:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:134:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:139:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:139:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:144:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:144:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:149:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:149:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:153:4: mutating non-standard global variable ngx
+    openresty/lualib/nginx_host.lua:154:4: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:155:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:194:15: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:195:34: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:199:3: mutating non-standard global variable ngx
+    openresty/lualib/nginx_host.lua:200:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:201:10: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:204:2: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:205:20: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:215:18: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:216:25: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:219:2: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:219:10: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:225:3: mutating non-standard global variable ngx
+    openresty/lualib/nginx_host.lua:226:3: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:227:10: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:285:4: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:285:12: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:292:4: mutating non-standard global variable ngx
+    openresty/lualib/nginx_host.lua:293:4: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:298:11: accessing undefined variable ngx
+    openresty/lualib/nginx_host.lua:318:2: mutating non-standard global variable ngx
+    openresty/lualib/nginx_host.lua:319:2: mutating non-standard global variable ngx
+    openresty/lualib/nginx_host.lua:320:2: accessing undefined variable ngx
+
+Checking openresty/lualib/stream_mock.lua         17 warnings
+
+    openresty/lualib/stream_mock.lua:16:21: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:20:2: mutating non-standard global variable ngx
+    openresty/lualib/stream_mock.lua:21:2: mutating non-standard global variable ngx
+    openresty/lualib/stream_mock.lua:28:15: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:30:2: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:31:2: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:33:8: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:45:17: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:47:4: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:48:4: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:54:17: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:58:4: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:59:4: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:65:3: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:73:15: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:75:2: accessing undefined variable ngx
+    openresty/lualib/stream_mock.lua:76:2: accessing undefined variable ngx
+
+Checking openresty/lualib/test_host.lua           2 warnings
+
+    openresty/lualib/test_host.lua:12:1: accessing undefined variable ngx
+    openresty/lualib/test_host.lua:15:17: accessing undefined variable ngx
+
+Checking redis_host.lua                           OK
+Checking run_demo.lua                             10 warnings
+
+    run_demo.lua:29:7: unused variable mock_users
+    run_demo.lua:151:3: value assigned to field type is overwritten on line 154 before use
+    run_demo.lua:157:12: unused variable err
+    run_demo.lua:179:12: unused variable err
+    run_demo.lua:202:12: unused variable err
+    run_demo.lua:224:12: unused variable err
+    run_demo.lua:247:12: unused variable err
+    run_demo.lua:266:12: unused variable err
+    run_demo.lua:325:11: trailing whitespace in a string
+    run_demo.lua:357:11: trailing whitespace in a string
+
+Checking run_nginx_demo.lua                       OK
+Checking run_redis_demo.lua                       OK
+Checking session_fsm.lua                          OK
+Checking sqlite_host.lua                          9 warnings
+
+    sqlite_host.lua:231:1: line contains only whitespace
+    sqlite_host.lua:240:1: line contains only whitespace
+    sqlite_host.lua:250:1: line contains only whitespace
+    sqlite_host.lua:259:1: line contains only whitespace
+    sqlite_host.lua:266:1: line contains only whitespace
+    sqlite_host.lua:276:1: line contains only whitespace
+    sqlite_host.lua:287:1: line contains only whitespace
+    sqlite_host.lua:299:1: line contains only whitespace
+    sqlite_host.lua:375:79: trailing whitespace in a string
+
+Checking test_hardened.lua                        1 warning
+
+    test_hardened.lua:155:8: value assigned to variable result is overwritten on line 156 before use
+
+Checking tools/reportgen.lua                      2 warnings
+
+    tools/reportgen.lua:262:8: value assigned to variable status is unused
+    tools/reportgen.lua:263:8: value assigned to variable summary is unused
+
+Checking tools/semantic_monitor.lua               OK
+Checking tools/summarize_reports.lua              OK
+Checking tools/test_runner.lua                    1 warning
+
+    tools/test_runner.lua:117:8: value assigned to variable status_icon is unused
+
+Checking tools/trace_transition.lua               OK
+Checking validate.lua                             1 warning
+
+    validate.lua:19:7: unused variable hardened
+
+Total: 271 warnings / 0 errors in 42 files
