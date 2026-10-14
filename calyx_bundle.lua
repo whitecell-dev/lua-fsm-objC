@@ -1,4 +1,4 @@
--- CALYX BUNDLE GENERATED: Tue Oct 13 19:48:55 2026
+-- CALYX BUNDLE GENERATED: Tue Oct 13 23:27:45 2026
 -- PRODUCTION HARDENED: Deterministic ordering + frozen API
 local bundle = { modules = {}, loaded = {} }
 

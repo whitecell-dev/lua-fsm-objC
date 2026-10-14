@@ -23,7 +23,8 @@
 set -e
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="${1:-/usr/local/openresty/site/lualib}"
+DEFAULT_DEST="/usr/local/openresty/site/lualib"
+DEST="${1:-$DEFAULT_DEST}"
 
 # The runtime closure. core/*.lua is deliberately absent: those modules require
 # bare names ("abi", "core") that resolve only through the package.preload
@@ -35,6 +36,8 @@ usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 [ "$1" = "-h" ] || [ "$1" = "--help" ] && usage
 
 if [ "$1" = "--check" ]; then
+    DEST="$DEFAULT_DEST"
+    [ -n "$2" ] && DEST="$2"
     DRIFT=0
     for f in $FILES; do
         if ! cmp -s "$REPO/$f" "$DEST/$f"; then
