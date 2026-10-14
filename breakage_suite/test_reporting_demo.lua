@@ -11,6 +11,10 @@ report:start_test("test_reporting_demo")
 
 -- Test 1: Basic FSM creation
 local fsm1 = bundle.create({
+	-- FIX: Test 2 below exercises the mailbox, which only sync-kind FSMs lack.
+	-- A default (objc/sync) FSM has no `mailbox` by design, so creating one
+	-- here failed for the wrong reason (MAILBOX_MISSING on a sync FSM).
+	kind = "mailbox",
 	name = "REPORT_TEST",
 	initial = "IDLE",
 	events = {
@@ -36,7 +40,10 @@ end
 if fsm1 and fsm1.mailbox then
 	local ok = fsm1:send("start", { to_fsm = fsm1 })
 	report:add_metric("mailbox_send", ok and "success" or "failed", "status")
-	report:add_metric("mailbox_queue_size", fsm1.mailbox:count(), "messages")
+	-- FIX: RingBuffer.count is a numeric field, not a method (core/ringbuffer.lua:24),
+	-- so `mailbox:count()` raised "attempt to call a number value". Read queue depth
+	-- via the public stats API instead.
+	report:add_metric("mailbox_queue_size", fsm1:mailbox_stats().queued, "messages")
 else
 	report:add_failure(
 		"MAILBOX_MISSING",

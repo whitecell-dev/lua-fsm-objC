@@ -54,9 +54,10 @@ from the repo root.
 `breakage_suite/test_unregistered_event.lua`.
 
 Sampled diff (`chat.lua`) is mechanical (call-arg reflow around comments) --
-safe to apply in the big-bang reformat pass. `calyx_bundle.lua` is excluded AND
-unparseable by StyLua (custom `CALYX_METADATA` header is not valid Lua) --
-further proof it is a build artifact: format `core/`, run `lua bundler.lua`.
+safe to apply in the big-bang reformat pass. `calyx_bundle.lua` is excluded
+because it is a build artifact: format `core/`, run `lua bundler.lua`.
+(No `CALYX_METADATA` header exists in the generated file; the header is a
+plain-comment generation timestamp.)
 
 ## 3. Prioritized list (next passes, in order -- lint and behavior stay separate)
 

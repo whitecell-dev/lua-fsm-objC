@@ -17,8 +17,9 @@ gaps that are **not** fixed are marked `KNOWN:` at the exact source line, and in
    installed by `calyx_bundle.lua` when it loads. Debugging by `require("core.objc")` gives
    you a second, disconnected copy of the module.
 
-2. **`calyx_bundle.lua` is generated.** It is `core/*.lua` embedded verbatim — the two are
-   byte-for-byte identical, and that invariant is meant to hold. Regenerate with
+2. **`calyx_bundle.lua` is generated.** It embeds `core/*.lua` verbatim — the module
+   bodies are identical, but the file header carries a generation timestamp, so
+   two regenerations are never byte-identical. Regenerate with
    `lua bundler.lua` from the repo root, then re-verify.
 
 3. **`core/core.lua` is partly dead code.** Only `build_transition_map`, `can_transition`,
@@ -122,7 +123,7 @@ Checked against the code on 2026-10-07.
 * ✅ Three `__newindex` freeze guards — `init.lua:126`, `core/objc.lua:180`, `core/mailbox.lua:405`
 * ✅ Bundle ABI shape validation at boot — `init.lua:57-63`
 * ✅ Deterministic monotonic clock shared process-wide — `core/abi.lua:20-23`
-* ✅ Machine visualization export (JSON / PlantUML / trace lines) generated from the real machine config — `tools/export_fsm.lua`
+* ✅ Machine visualization export (JSON / PlantUML / trace lines) generated from the `create()` config table — not from a live instance, whose transition map is closure-hidden — `tools/export_fsm.lua`
 
 ---
 
