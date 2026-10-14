@@ -92,20 +92,22 @@ end
 -- ============================================================================
 
 local function escape_string(s)
-	return (string.gsub(s, '[%z\1-\31\\"]', function(c)
-		if c == '"' then
-			return '\\"'
-		elseif c == "\\" then
-			return "\\\\"
-		elseif c == "\n" then
-			return "\\n"
-		elseif c == "\r" then
-			return "\\r"
-		elseif c == "\t" then
-			return "\\t"
-		end
-		return string.format("\\u%04x", string.byte(c))
-	end))
+	return (
+		string.gsub(s, '[%z\1-\31\\"]', function(c)
+			if c == '"' then
+				return '\\"'
+			elseif c == "\\" then
+				return "\\\\"
+			elseif c == "\n" then
+				return "\\n"
+			elseif c == "\r" then
+				return "\\r"
+			elseif c == "\t" then
+				return "\\t"
+			end
+			return string.format("\\u%04x", string.byte(c))
+		end)
+	)
 end
 
 local function encode_value(val)

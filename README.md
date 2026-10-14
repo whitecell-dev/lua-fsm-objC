@@ -51,13 +51,15 @@ lua run_demo.lua        # writes ./session_demo.db; needs lsqlite3
 lua run_redis_demo.lua  # FLUSHES THE REDIS DB at startup; needs redis on 127.0.0.1:6379
 lua run_nginx_demo.lua  # needs OpenResty already running on :8080 (see caveat below)
 
-# Tests — 9 files, no aggregate runner
+# Tests — 11 files, no aggregate runner
 lua test_hardened.lua
 lua breakage_suite/test_context_loss.lua
 lua breakage_suite/test_example_professional.lua
 lua breakage_suite/test_unregistered_event.lua
 lua breakage_suite/test_invalid_fsm_schema.lua
 lua breakage_suite/test_export_fsm.lua
+lua breakage_suite/test_log_host.lua
+lua breakage_suite/test_prometheus_host.lua
 lua breakage_suite/test_mailbox_debug.lua
 lua breakage_suite/test_mailbox_overflow.lua
 lua breakage_suite/test_reporting_demo.lua
@@ -176,6 +178,8 @@ lua-fsm-objC/
 │
 ├── sqlite_host.lua        # SQLite host adapter (needs lsqlite3, cjson)
 ├── redis_host.lua         # Redis host adapter (needs redis, cjson). FLUSHALLs Redis
+├── log_host.lua           # Append-only NDJSON log host (pure Lua). Records, never executes
+├── prometheus_host.lua    # Metric-only host (pure Lua). Exposes render() for /metrics
 ├── openresty/             # OpenResty HTTP host -- see nginx.conf KNOWN note
 │   ├── nginx.conf         #   14 location blocks; lua_package_path problem documented inline
 │   └── lualib/
@@ -190,18 +194,21 @@ lua-fsm-objC/
 │   ├── ollama.lua         #   Classifies free text to one of 4 commands via curl
 │   └── chat.lua           #   Interactive REPL. Contains a KNOWN vim.inspect bug
 │
-├── breakage_suite/       # 8 executable tests. No aggregate runner -- run them individually
+├── breakage_suite/       # 10 executable tests. No aggregate runner -- run them individually
 │   ├── test_context_loss.lua
 │   ├── test_example_professional.lua
 │   ├── test_export_fsm.lua
 │   ├── test_invalid_fsm_schema.lua
+│   ├── test_log_host.lua
 │   ├── test_mailbox_debug.lua
 │   ├── test_mailbox_overflow.lua
+│   ├── test_prometheus_host.lua
 │   ├── test_reporting_demo.lua
 │   └── test_unregistered_event.lua
 │
 ├── tools/
 │   ├── export_fsm.lua     #   Machine viz: create()-config -> JSON / PlantUML / trace lines
+│   ├── json.lua           #   Minimal pure-Lua JSON codec (shared by the new hosts)
 │   ├── reportgen.lua      #   Writes survival_reports/*.json (overwrites, "w" mode)
 │   ├── test_runner.lua    #   Lua 5.1-only harness (uses setfenv); injects fail/warn/metric
 │   ├── summarize_reports.lua  # UNREFERENCED, writes nothing
@@ -227,7 +234,7 @@ lua-fsm-objC/
 | FSM instance rejects new fields | **ENFORCED** | `core/objc.lua:197-204`, `core/mailbox.lua:427-433` |
 | FSM metatable not introspectable | **ENFORCED** | `core/objc.lua:205-209`, `core/mailbox.lua:434-438` |
 | Bundle ABI validated at boot | **ENFORCED** | `init.lua:57-63` |
-| Effect capability scoping by agent role | **ENFORCED in 3 of 4 hosts** | `effect_contract.lua:500-533`; `sqlite_host.lua`, `redis_host.lua`, `nginx_host.lua`. **Not** in `mock_data.lua`, **not** in `run_demo.lua` Phase 2 |
+| Effect capability scoping by agent role | **ENFORCED in 4 of 5 hosts** | `effect_contract.lua:500-533`; `sqlite_host.lua`, `redis_host.lua`, `nginx_host.lua`, `log_host.lua` (via `validate_for_agent`). `prometheus_host.lua` gates metrics via `check_capability` (the contract validator cannot pass metrics) and rejects all other types. **Not** in `mock_data.lua`, **not** in `run_demo.lua` Phase 2 |
 | `NO MORE LIES` — context enforcement | **PARTIAL** | error Results are returned, but async resume still matches by substring (`core/mailbox.lua:137`) |
 | `GUARD` — frozen APIs | **PARTIALLY TRUE** | three `__newindex` guards exist, but `fsm:can()`/`fsm:is()` were silently broken until 2026-10-07, which shows how little the guards covered |
 | Async transitions are safe | **MOSTLY** | self-contained in `core/mailbox.lua:71-118`; the old "semantic bridge" is a deleted mechanism, not a requirement |

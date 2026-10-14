@@ -69,6 +69,10 @@ Recorded so nobody "fixes" them again or assumes they were always right.
 * `effect_contract.lua:65-87` — the `metric` effect type is unsatisfiable: `effect.type` is
   both the effect discriminator and the metric kind, so the schema can never be satisfied.
   Consequence: `run_demo.lua` and `mock_data.lua` always generate 0 metrics.
+  BYPASSED (not fixed) by `prometheus_host.lua`: it gates metric authorization with
+  `check_capability` and validates its own intake (`kind`, defaulting to `"counter"`),
+  never calling `validate_for_agent` for metrics. Renaming the kind field would be a
+  contract/wire-format change and remains an RFC.
 * Effect *validation* is all-or-nothing; effect *execution* is not, in all three hosts.
 * `mock_data.lua` — unrecognized effect types are reported as successfully executed.
 * `sqlite_host.lua` — `db_query` never checks `db:exec`'s error return, so a failed
@@ -100,11 +104,15 @@ Recorded so nobody "fixes" them again or assumes they were always right.
   holding an nginx worker.
 
 ### Persistence / determinism
+* CLOSED by `log_host.lua`: append-only NDJSON log with fold-derived state
+  (`fold_user`, `replay_all`) and a checkpoint sidecar that is a hint, not the
+  truth. Single-writer assumption, same posture as the other hosts.
 * `core/abi.lua:20-23` — the clock is one global counter shared by all FSM instances;
   `reset` has no callers.
 * `core/mailbox.lua:24-27`, `core/utils.lua` — `math.randomseed(os.time())` reseeds the
   global PRNG on every FSM construction.
-* objc and mailbox FSMs are in-memory only; only the three hosts persist.
+* objc and mailbox FSMs are in-memory only; only the hosts persist (sqlite, redis,
+  nginx/dict, log file, prometheus snapshot).
 
 ---
 
