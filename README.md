@@ -115,15 +115,15 @@ capability-scoping decision, not a container problem. See [KNOWN_ISSUES.md](KNOW
 
 ## 📊 Verified Working
 
-Checked against the code on 2026-10-07.
+Checked against the code on 2026-10-14.
 
 * ✅ Basic FSM transitions — `demo.lua`, `core/objc.lua`, `core/mailbox.lua`
 * ✅ Mailbox actor communication with a bounded ring buffer — `core/ringbuffer.lua`
 * ✅ Async transitions with `machine.ASYNC` via an `onleave<state>` callback returning
   `ABI.STATES.ASYNC` — mailbox FSM only; `core/objc.lua` has **no** async support
-* ✅ Result-table error contract (`{ok, code, message, details, tick}`) — `core/abi.lua:195-204`
-* ✅ Three `__newindex` freeze guards — `init.lua:126`, `core/objc.lua:180`, `core/mailbox.lua:405`
-* ✅ Bundle ABI shape validation at boot — `init.lua:57-63`
+* ✅ Result-table error contract (`{ok, code, message, details, tick}`) — `core/abi.lua:203-212`
+* ✅ Three `__newindex` freeze guards — `init.lua:151`, `core/objc.lua:216`, `core/mailbox.lua:447`
+* ✅ Bundle ABI shape validation at boot — `init.lua:82-88`
 * ✅ Deterministic monotonic clock shared process-wide — `core/abi.lua:20-23`
 * ✅ Machine visualization export (JSON / PlantUML / trace lines) generated from the `create()` config table — not from a live instance, whose transition map is closure-hidden — `tools/export_fsm.lua`
 
@@ -139,10 +139,10 @@ These are **real, measured** gaps — not aspirations. Each has a reproducing te
 | Reserved event names rejected at construction (an event named `send` is an error, not a silent overwrite) | **ENFORCED** | `core/core.lua` `validate_fsm_config` vs `core/abi.lua` `RESERVED`; measured by `breakage_suite/test_unregistered_event.lua` |
 | Event / state config validated at FSM construction (missing names/targets, bad `from` types, unknown-shape configs fail before executing) | **ENFORCED** | `core/core.lua` `validate_fsm_config`; `breakage_suite/test_invalid_fsm_schema.lua` passes 24/24 |
 | Circular message loops / concurrent reentrancy | **UNTESTED** | no test; `breakage_suite/patterns/` and `test_concurrent_dispatch.lua` were removed as zero-byte placeholders |
-| `fsm:can()` / `fsm:is()` returned `false` silently | **FIXED 2026-10-07** | declared dot-style, called colon-style everywhere; `core/objc.lua:144` now self-taking |
-| Async resume matched by substring, so event `step` resumes an in-flight `step1_LEAVE_WAIT` | **KNOWN, not fixed** | `core/mailbox.lua:137` |
+| `fsm:can()` / `fsm:is()` returned `false` silently | **FIXED 2026-10-07** | declared dot-style, called colon-style everywhere; `core/objc.lua:163` now self-taking |
+| Async resume matched by substring, so event `step` resumes an in-flight `step1_LEAVE_WAIT` | **KNOWN, not fixed** | `core/mailbox.lua:145` |
 | Shrinking the mailbox silently destroys queued messages | **KNOWN, not fixed** | `core/ringbuffer.lua:214-232` |
-| Message silently discarded after 3 failed retries | **KNOWN, not fixed** | `core/mailbox.lua:351-355` |
+| Message silently discarded after 3 failed retries | **KNOWN, not fixed** | `core/mailbox.lua:367-373` |
 | `metric` effect type is unsatisfiable — `type` is both the effect discriminator and the metric kind | **KNOWN, not fixed** | `effect_contract.lua:65-87`; both mock generators always yield 0 metrics |
 | `/stats` and `/debug` returned HTTP 500 on every request | **FIXED 2026-10-07** | both called `ngx.start_time()`, which does not exist in ngx_lua |
 | `email` effect validation rejected **100%** of addresses | **FIXED 2026-10-07** | pattern used `{2,}`, a quantifier Lua patterns do not have |
@@ -154,13 +154,13 @@ These are **real, measured** gaps — not aspirations. Each has a reproducing te
 
 ## 📁 Repository Structure
 
-What is actually on disk, as of 2026-10-07.
+What is actually on disk, as of 2026-10-14.
 
 ```
 lua-fsm-objC/
 │
 ├── init.lua               # Bootstrap: strict mode -> load bundle -> ABI check -> frozen API
-├── calyx_bundle.lua       # GENERATED. core/*.lua embedded verbatim, byte-for-byte
+├── calyx_bundle.lua       # GENERATED. core/*.lua embedded verbatim (header timestamp differs per run)
 ├── bundler.lua            # Regenerates calyx_bundle.lua. Scans core/ only
 ├── hardened.lua           # Global-variable firewall, safe helpers, shape validation
 ├── effect_contract.lua    # Effect algebra: 14 effect schemas + 4 agent capability sets
@@ -230,14 +230,14 @@ lua-fsm-objC/
 
 | Claim | Status | Evidence |
 | --- | --- | --- |
-| Public API rejects new fields | **ENFORCED** | `init.lua:126-128` |
-| FSM instance rejects new fields | **ENFORCED** | `core/objc.lua:197-204`, `core/mailbox.lua:427-433` |
-| FSM metatable not introspectable | **ENFORCED** | `core/objc.lua:205-209`, `core/mailbox.lua:434-438` |
-| Bundle ABI validated at boot | **ENFORCED** | `init.lua:57-63` |
-| Effect capability scoping by agent role | **ENFORCED in 4 of 5 hosts** | `effect_contract.lua:500-533`; `sqlite_host.lua`, `redis_host.lua`, `nginx_host.lua`, `log_host.lua` (via `validate_for_agent`). `prometheus_host.lua` gates metrics via `check_capability` (the contract validator cannot pass metrics) and rejects all other types. **Not** in `mock_data.lua`, **not** in `run_demo.lua` Phase 2 |
-| `NO MORE LIES` — context enforcement | **PARTIAL** | error Results are returned, but async resume still matches by substring (`core/mailbox.lua:137`) |
+| Public API rejects new fields | **ENFORCED** | `init.lua:151-153` |
+| FSM instance rejects new fields | **ENFORCED** | `core/objc.lua:216-223`, `core/mailbox.lua:447-453` |
+| FSM metatable not introspectable | **ENFORCED** | `core/objc.lua:224-228`, `core/mailbox.lua:454-458` |
+| Bundle ABI validated at boot | **ENFORCED** | `init.lua:82-88` |
+| Effect capability scoping by agent role | **ENFORCED in 4 of 5 hosts** | `effect_contract.lua:506-539`; `sqlite_host.lua`, `redis_host.lua`, `nginx_host.lua`, `log_host.lua` (via `validate_for_agent`). `prometheus_host.lua` gates metrics via `check_capability` (the contract validator cannot pass metrics) and rejects all other types. **Not** in `mock_data.lua`, **not** in `run_demo.lua` Phase 2 |
+| `NO MORE LIES` — context enforcement | **PARTIAL** | error Results are returned, but async resume still matches by substring (`core/mailbox.lua:145`) |
 | `GUARD` — frozen APIs | **PARTIALLY TRUE** | three `__newindex` guards exist, but `fsm:can()`/`fsm:is()` were silently broken until 2026-10-07, which shows how little the guards covered |
-| Async transitions are safe | **MOSTLY** | self-contained in `core/mailbox.lua:71-118`; the old "semantic bridge" is a deleted mechanism, not a requirement |
+| Async transitions are safe | **MOSTLY** | self-contained in `core/mailbox.lua:82-205`; the old "semantic bridge" is a deleted mechanism, not a requirement |
 | Email address validation | **ENFORCED (was silently broken)** | `effect_contract.lua:292`; the `{2,}` quantifier does not exist in Lua patterns, so until 2026-10-07 it rejected every address |
 | Effect execution is all-or-nothing | **FALSE** | validation is atomic; **execution is not**. `sqlite_host.lua:539-562`, `redis_host.lua:320-338`, `nginx_host.lua:304` |
 | LLM-compatible structure | **UNVERIFIED** | `LLM-OS/` feeds FSM context to a model but nothing verifies comprehension |
@@ -296,8 +296,9 @@ It is built to:
 * `test_summary.json` summarises only the tests run **in that one process**, so it will not
   agree with the number of `*.report.json` files sitting next to it.
 * `test_invalid_fsm_schema.json` and `test_mailbox_overflow.json` were hand-written, not
-  emitted by `reportgen`, and their contents are stale — the schema one claims 24/24 passing
-  when the suite currently fails 10 of 24.
+  emitted by `reportgen`. Their headline claims currently agree with the live suites —
+  the schema suite passes 24/24 (re-measured 2026-10-14) and the overflow test still
+  enqueues 10,000 against a 1000 cap — so treat them as dated snapshots, not live evidence.
 
 The previous `survival_reports/md.md`, `static_failures.txt` and `runtime_failures.txt`
 were removed: they were generated by no code in this repo, referenced deleted files, and
