@@ -50,12 +50,13 @@ lua run_demo.lua        # writes ./session_demo.db; needs lsqlite3
 lua run_redis_demo.lua  # FLUSHES THE REDIS DB at startup; needs redis on 127.0.0.1:6379
 lua run_nginx_demo.lua  # needs OpenResty already running on :8080 (see caveat below)
 
-# Tests — 8 files, no aggregate runner
+# Tests — 9 files, no aggregate runner
 lua test_hardened.lua
 lua breakage_suite/test_context_loss.lua
 lua breakage_suite/test_example_professional.lua
 lua breakage_suite/test_unregistered_event.lua
 lua breakage_suite/test_invalid_fsm_schema.lua
+lua breakage_suite/test_export_fsm.lua
 lua breakage_suite/test_mailbox_debug.lua
 lua breakage_suite/test_mailbox_overflow.lua
 lua breakage_suite/test_reporting_demo.lua
@@ -121,6 +122,7 @@ Checked against the code on 2026-10-07.
 * ✅ Three `__newindex` freeze guards — `init.lua:126`, `core/objc.lua:180`, `core/mailbox.lua:405`
 * ✅ Bundle ABI shape validation at boot — `init.lua:57-63`
 * ✅ Deterministic monotonic clock shared process-wide — `core/abi.lua:20-23`
+* ✅ Machine visualization export (JSON / PlantUML / trace lines) generated from the real machine config — `tools/export_fsm.lua`
 
 ---
 
@@ -187,9 +189,10 @@ lua-fsm-objC/
 │   ├── ollama.lua         #   Classifies free text to one of 4 commands via curl
 │   └── chat.lua           #   Interactive REPL. Contains a KNOWN vim.inspect bug
 │
-├── breakage_suite/       # 7 executable tests. No aggregate runner -- run them individually
+├── breakage_suite/       # 8 executable tests. No aggregate runner -- run them individually
 │   ├── test_context_loss.lua
 │   ├── test_example_professional.lua
+│   ├── test_export_fsm.lua
 │   ├── test_invalid_fsm_schema.lua
 │   ├── test_mailbox_debug.lua
 │   ├── test_mailbox_overflow.lua
@@ -197,6 +200,7 @@ lua-fsm-objC/
 │   └── test_unregistered_event.lua
 │
 ├── tools/
+│   ├── export_fsm.lua     #   Machine viz: create()-config -> JSON / PlantUML / trace lines
 │   ├── reportgen.lua      #   Writes survival_reports/*.json (overwrites, "w" mode)
 │   ├── test_runner.lua    #   Lua 5.1-only harness (uses setfenv); injects fail/warn/metric
 │   ├── summarize_reports.lua  # UNREFERENCED, writes nothing
