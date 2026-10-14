@@ -105,12 +105,12 @@ ABI.ERRORS = {
 -- ============================================================================
 -- EVENT VALIDATION PATTERNS
 --
--- KNOWN: NONE OF THESE ARE ENFORCED ON ANY SHIPPED PATH. They are read only by
--- Core.validate_event_name / Core.validate_state_name (core/core.lua:116,145),
--- and nothing calls those -- core/objc.lua and core/mailbox.lua construct FSMs
--- with no name validation at all. Proof: breakage_suite/test_invalid_fsm_schema.lua
--- fails 10 of 24 cases, including FSMs built with events that have no name and
--- no target, and non-string `from` values. (recon 7/D2)
+-- ENFORCED at FSM construction via Core.validate_fsm_config (core/core.lua),
+-- which both core/objc.lua and core/mailbox.lua call before building the
+-- transition map. Proof: breakage_suite/test_invalid_fsm_schema.lua passes
+-- 24/24, including rejections for missing names/targets and bad `from` types.
+-- NOTE: state-name patterns are deliberately NOT enforced -- numeric state
+-- names (e.g. to=456) are allowed and only event names are pattern-checked.
 -- ============================================================================
 
 ABI.PATTERNS = {
@@ -128,12 +128,13 @@ ABI.PATTERNS = {
 -- RESERVED NAMES
 -- ============================================================================
 
--- KNOWN: ABI.RESERVED IS NOT ENFORCED. Its only enforcer is
--- Core.check_event_collision (core/core.lua:179), which is dead code. An event
--- named "send"/"resume"/"current" is therefore accepted and silently overwrites
--- the mailbox FSM's own methods (core/mailbox.lua:253 vs the event loop at
--- :399). breakage_suite/test_unregistered_event.lua measures the consequence as
--- COLLISION_SEND_FAILED. (recon 7/D1)
+-- KNOWN: ABI.RESERVED IS ENFORCED at construction (not at runtime).
+-- Core.validate_fsm_config (core/core.lua) rejects any event whose name is in
+-- this list, so a reserved name can never reach the dynamic method loop that
+-- would otherwise overwrite the FSM's own methods (e.g. an event named "send"
+-- overwrote core/mailbox.lua's send()). Runtime sends of undeclared events
+-- are still rejected per-transition with INVALID_TRANSITION and counted in
+-- get_diagnostics(). See breakage_suite/test_unregistered_event.lua.
 ABI.RESERVED = {
 	-- Core methods
 	"send",
@@ -153,6 +154,13 @@ ABI.RESERVED = {
 	"currentTransitioningEvent",
 	"_complete",
 	"name",
+	-- Read-only accessors and introspection (would be overwritten by the
+	-- dynamic event-method loop just like the entries above).
+	"get_state",
+	"get_name",
+	"get_async_state",
+	"get_diagnostics",
+	"capabilities",
 
 	-- Lifecycle callbacks
 	"onbefore",

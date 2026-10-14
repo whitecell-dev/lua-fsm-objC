@@ -76,7 +76,14 @@ function Bundler:topological_sort()
 			-- Resolve dependency name
 			local dep_full = "lua-fsm-objC." .. dep
 
-			if self.modules[dep_full] then
+			-- FIX: ignore self-edges. extract_dependencies also matches
+			-- require("...") inside comments (e.g. core/core.lua documents
+			-- `require("core")`), which made every module with such a comment
+			-- depend on itself, so Kahn's algorithm reported a cycle and
+			-- regeneration was impossible. A module never needs to precede
+			-- itself.
+			local is_self = (dep_full == name or dep == name)
+			if not is_self and self.modules[dep_full] then
 				table.insert(adj_list[dep_full], name)
 				in_degree[name] = in_degree[name] + 1
 			elseif self.modules[dep] then

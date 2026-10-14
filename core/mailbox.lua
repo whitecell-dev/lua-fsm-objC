@@ -11,6 +11,10 @@ local MailboxFSM = {}
 function MailboxFSM.create(opts)
 	opts = opts or {}
 
+	-- Construction-time contract: fail early on malformed configs and
+	-- reserved event names, before any state is built.
+	Core.validate_fsm_config(opts)
+
 	-- ============================================================
 	-- PRIVATE STATE (Closure-Protected)
 	-- ============================================================
@@ -43,6 +47,10 @@ function MailboxFSM.create(opts)
 			callbacks[k] = v
 		end
 	end
+
+	-- Runtime diagnostics (read-only via get_diagnostics; never fails a
+	-- transition, only observes it).
+	local unknown_event_count = 0
 
 	-- ============================================================
 	-- PUBLIC API (Forward Declaration)
@@ -154,6 +162,11 @@ function MailboxFSM.create(opts)
 		-- Start new transition
 		local can, target = can_transition_internal(event_name)
 		if not can then
+			-- checkevents parity: count sends of undeclared event names.
+			-- Known events from wrong states are NOT counted here.
+			if transition_map[event_name] == nil then
+				unknown_event_count = unknown_event_count + 1
+			end
 			return ABI.error_result(
 				ABI.ERRORS.INVALID_TRANSITION,
 				string.format(
@@ -226,6 +239,12 @@ function MailboxFSM.create(opts)
 	function public_api.get_name()
 		return fsm_name
 	end
+	-- Read-only runtime diagnostics. Returns a fresh table on every call so
+	-- observers cannot mutate internal counters.
+	function public_api.get_diagnostics()
+		return { unknown_events = unknown_event_count }
+	end
+
 	-- FIX: see the identical note in core/objc.lua:135. These were declared
 	-- dot-style but invoked with colon syntax everywhere, so `fsm:can(ev)` /
 	-- `fsm:is(state)` silently returned false (the FSM was passed as the
@@ -410,10 +429,11 @@ function MailboxFSM.create(opts)
 
 	-- Export constants
 	-- KNOWN: same self-inconsistency as core/objc.lua. get_state(),
-	-- get_async_state(), get_name(), mailbox_stats(), clear_mailbox(),
-	-- set_mailbox_size(), process_mailbox() and resume() take NO self, so their
-	-- colon-style calls work only because Lua ignores the extra argument.
-	-- send() and (now) can()/is() are self-taking. (recon 7/B26)
+	-- get_async_state(), get_name(), get_diagnostics(), mailbox_stats(),
+	-- clear_mailbox(), set_mailbox_size(), process_mailbox() and resume() take
+	-- NO self, so their colon-style calls work only because Lua ignores the
+	-- extra argument. send() and (now) can()/is() are self-taking.
+	-- (recon 7/B26)
 	public_api.ASYNC = ABI.STATES.ASYNC
 	public_api.NONE = ABI.STATES.NONE
 	public_api.STATES = ABI.STATES

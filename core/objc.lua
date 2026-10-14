@@ -11,6 +11,10 @@ local ObjCFSM = {}
 function ObjCFSM.create(opts)
 	opts = opts or {}
 
+	-- Construction-time contract: fail early on malformed configs and
+	-- reserved event names, before any state is built.
+	Core.validate_fsm_config(opts)
+
 	-- ============================================================
 	-- PRIVATE STATE (Hidden in Closure - LLM Cannot Touch)
 	-- ============================================================
@@ -28,6 +32,10 @@ function ObjCFSM.create(opts)
 		end
 	end
 
+	-- Runtime diagnostics (read-only via get_diagnostics; never fails a
+	-- transition, only observes it).
+	local unknown_event_count = 0
+
 	-- ============================================================
 	-- PUBLIC API (Define FIRST so it's available as upvalue)
 	-- ============================================================
@@ -44,6 +52,11 @@ function ObjCFSM.create(opts)
 	local function execute_transition(event_name, data, options)
 		local can, target = can_transition_internal(event_name)
 		if not can then
+			-- checkevents parity: count sends of undeclared event names.
+			-- Known events from wrong states are NOT counted here.
+			if transition_map[event_name] == nil then
+				unknown_event_count = unknown_event_count + 1
+			end
 			return ABI.error_result(
 				ABI.ERRORS.INVALID_TRANSITION,
 				string.format("Cannot transition from '%s' via '%s'", current_state, event_name),
@@ -131,6 +144,12 @@ function ObjCFSM.create(opts)
 		return fsm_name
 	end
 
+	-- Read-only runtime diagnostics. Returns a fresh table on every call so
+	-- observers cannot mutate internal counters.
+	function public_api.get_diagnostics()
+		return { unknown_events = unknown_event_count }
+	end
+
 	-- Predicate checks
 	-- FIX: these were declared dot-style (`function public_api.can(event_name)`)
 	-- while every caller in the repo -- including sqlite_host.lua, redis_host.lua,
@@ -178,7 +197,7 @@ function ObjCFSM.create(opts)
 	--
 	-- KNOWN: the frozen API is INCONSISTENT about self. send(event, params) and
 	-- now can()/is() are self-taking (colon syntax). But get_state(), get_name(),
-	-- capabilities and mailbox_stats are NOT, so `fsm:get_state()` /
+	-- get_diagnostics(), capabilities and mailbox_stats are NOT, so `fsm:get_state()` /
 	-- `fsm:mailbox_stats()` only work because Lua silently ignores the extra
 	-- argument. That is why the can/is bug above went unnoticed for so long.
 	-- Safe either way, but do not assume a method "taking an argument" means it

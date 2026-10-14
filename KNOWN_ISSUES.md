@@ -31,9 +31,13 @@ Recorded so nobody "fixes" them again or assumes they were always right.
 ## Not fixed — inline `KNOWN:` markers
 
 ### Dead code that reads as live
-* `core/core.lua` — `lock_metatable`, `check_event_collision`, `validate_event_name`,
-  `validate_state_name`, `_dispatch_callback`, `create_base_fsm`, `:_transition`,
-  `:_complete_transition`, `:can`, `:is` are never called. Banner at the top of the file.
+* `core/core.lua` — `lock_metatable`, `_dispatch_callback`, `create_base_fsm`,
+  `:_transition`, `:_complete_transition`, `:can`, `:is` are never called.
+  Banner at the top of the file.
+  NOTE (Phase-1 validation): `check_event_collision`, `validate_event_name`,
+  `validate_state_name` and the new `validate_fsm_config` ARE live now -- both
+  FSM `create()` paths call them before building the transition map, so
+  reserved event names and malformed configs fail at construction.
 * `core/stringbuffer.lua` — 294 lines, no callers anywhere.
 * `validate.lua` — no callers, and does not catch the gaps the test suite fails on.
 * `tools/semantic_monitor.lua`, `tools/summarize_reports.lua` — unreferenced.

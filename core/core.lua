@@ -7,38 +7,31 @@
 --
 -- READ THIS BEFORE TRUSTING ANYTHING BELOW
 --
--- This module is SPLIT. Only four functions are actually live on the shipped
--- path (both FSMs in core/objc.lua and core/mailbox.lua call exactly these):
+-- This module is SPLIT. The following functions are live on the shipped
+-- path (both FSMs in core/objc.lua and core/mailbox.lua call all of these
+-- during create()):
 --
 --   LIVE  Core.build_transition_map  (:147)  Core.can_transition   (:187)
 --   LIVE  Core.create_context        (:204)  Core.warn             (:19)
+--   LIVE  Core.validate_fsm_config       Core.validate_event_name
+--   LIVE  Core.validate_state_name       Core.check_event_collision
 --
--- Everything else below -- lock_metatable, check_event_collision,
--- validate_event_name, validate_state_name, _dispatch_callback,
+-- Everything else below -- lock_metatable, _dispatch_callback,
 -- create_base_fsm, :_transition, :_complete_transition, :can, :is, and the
 -- ASYNC/NONE/STATES re-exports -- is DEAD CODE. core/objc.lua and
 -- core/mailbox.lua are closure-based and re-implement transition execution
 -- and freezing themselves. Nothing calls the versions here.
 --
--- Two consequences that used to read as guarantees but are not enforced:
+-- Construction-time validation IS enforced: Core.validate_fsm_config runs at
+-- the top of both ObjCFSM.create and MailboxFSM.create and hard-errors on
+-- missing/invalid event definitions and reserved event names, before the
+-- transition map is built. State-name patterns are deliberately NOT enforced
+-- (numeric states are allowed); only event names are pattern-checked.
+-- Duplicate event names warn and let the last definition win, matching the
+-- transition-map overwrite behavior.
 --
---   1. NO event/state name validation runs on any shipped path. ABI.PATTERNS
---      (:102-109) is only consulted by Core.validate_event_name, which is
---      never called. The ONLY live checks are the two asserts in
---      build_transition_map (:152-153). See breakage_suite/
---      test_invalid_fsm_schema.lua, which fails 10/24 cases against this.
---
---   2. ABI.RESERVED (core/abi.lua:115-146) is NOT enforced. The only enforcer
---      is Core.check_event_collision, which is dead. So an event literally
---      named "send" will silently overwrite the mailbox FSM's own send()
---      (defined core/mailbox.lua:240, reassigned in the event loop at :382).
---
--- KNOWN: dead validators + unenforced reserved names (recon 7/D1,D2); kept,
--- not deleted, so the intended design stays readable. Not fixed here because
--- wiring them in changes FSM construction behavior = a feature change.
---
--- The frozen-proxy guards that DO run are core/objc.lua:180-187 and
--- core/mailbox.lua:405-411 -- not lock_metatable below.
+-- The frozen-proxy guards that DO run are core/objc.lua and
+-- core/mailbox.lua -- not lock_metatable below.
 -- ============================================================================
 
 local ABI = require("abi")
@@ -106,8 +99,8 @@ end
 
 -- ============================================================================
 -- EVENT NAME VALIDATION
--- DEAD CODE -- never called. ABI.PATTERNS.EVENT_NAME is therefore
--- NOT enforced on any shipped path (recon 7/D2).
+-- LIVE -- called by Core.validate_fsm_config below on every event at
+-- construction time.
 -- ============================================================================
 
 function Core.validate_event_name(name, strict_mode)
@@ -137,7 +130,8 @@ end
 
 -- ============================================================================
 -- STATE NAME VALIDATION
--- DEAD CODE -- only caller is create_base_fsm (:248), itself dead.
+-- LIVE -- kept for API shape and direct callers. NOTE: validate_fsm_config
+-- deliberately does NOT pattern-check state names (numeric states allowed).
 -- ============================================================================
 
 function Core.validate_state_name(name, strict_mode)
@@ -167,13 +161,12 @@ end
 
 -- ============================================================================
 -- EVENT COLLISION DETECTION
--- DEAD CODE -- never called.
---
--- This is the ONLY place ABI.RESERVED is enforced. Because it is dead,
--- reserved event names are silently accepted and can clobber FSM methods
--- (e.g. an event named "send" overwrites core/mailbox.lua:240).
--- KNOWN: unenforced reserved names (recon 7/D1); not wired because doing so
--- would make previously-accepted FSM configs start failing = feature change.
+-- LIVE -- called by Core.validate_fsm_config below for every event name at
+-- construction time. Reserved names hard-error (fail-early contract); names
+-- colliding with an existing instance method warn and skip. The instance
+-- check only applies when a live instance is passed; construction-time calls
+-- pass nil and rely on the ABI.RESERVED list, which covers all public
+-- methods on both FSM kinds.
 -- ============================================================================
 
 function Core.check_event_collision(fsm_instance, name)
@@ -184,10 +177,72 @@ function Core.check_event_collision(fsm_instance, name)
 		end
 	end
 
-	-- Check existing methods
-	if fsm_instance[name] and type(fsm_instance[name]) == "function" then
+	-- Check existing methods (only when called against a live instance)
+	if fsm_instance and fsm_instance[name] and type(fsm_instance[name]) == "function" then
 		Core.warn("Event name '" .. name .. "' collides with existing FSM method. Skipping creation.", "collision")
 		return false
+	end
+
+	return true
+end
+
+-- ============================================================================
+-- FSM CONFIG VALIDATION (CONSTRUCTION-TIME CONTRACT)
+-- LIVE -- called at the top of ObjCFSM.create and MailboxFSM.create, before
+-- the transition map is built. Hard-errors on malformed configs so bad
+-- machines fail before the FSM begins executing. Deliberately narrow:
+-- callbacks, mailbox sizes, and state-name formats are NOT checked here
+-- (see breakage_suite/test_invalid_fsm_schema.lua for the pinned contract).
+-- ============================================================================
+
+function Core.validate_fsm_config(opts)
+	if type(opts) ~= "table" then
+		error("events required (opts must be a table)", 2)
+	end
+
+	local events = opts.events
+	if events == nil then
+		error("events required (opts.events missing)", 2)
+	end
+	if type(events) ~= "table" then
+		error("events required (opts.events must be a table)", 2)
+	end
+
+	local seen = {}
+	for i, ev in ipairs(events) do
+		if type(ev) ~= "table" then
+			error(string.format("event[%d] must be table, got %s", i, type(ev)), 2)
+		end
+
+		if type(ev.name) ~= "string" then
+			error(string.format("event[%d].name must be string, got %s", i, type(ev.name)), 2)
+		end
+
+		-- Reserved-name collision (fail-early; nil instance = list check only)
+		Core.check_event_collision(nil, ev.name)
+
+		if not string.match(ev.name, ABI.PATTERNS.EVENT_NAME) then
+			error(
+				string.format("event[%d].name '%s' must match pattern %s", i, ev.name, ABI.PATTERNS.EVENT_NAME),
+				2
+			)
+		end
+
+		if ev.to == nil then
+			error(string.format("event[%d].to is required", i), 2)
+		end
+
+		if ev.from ~= nil and type(ev.from) ~= "string" and type(ev.from) ~= "table" then
+			error(string.format("event[%d].from must be string or table, got %s", i, type(ev.from)), 2)
+		end
+
+		if seen[ev.name] then
+			Core.warn(
+				string.format("Duplicate event name '%s' overrides previous definition", ev.name),
+				"validation"
+			)
+		end
+		seen[ev.name] = true
 	end
 
 	return true
@@ -200,10 +255,15 @@ end
 function Core.build_transition_map(events)
 	local map = {}
 
-	for _, ev in ipairs(events) do
-		-- Validate event structure
-		assert(type(ev.name) == "string", "event.name must be string")
-		assert(ev.to ~= nil, "event.to is required")
+	for i, ev in ipairs(events) do
+		-- Validate event structure (backstop; create() paths run the full
+		-- Core.validate_fsm_config first, so these are unreachable there).
+		assert(type(ev.name) == "string", string.format("event[%d].name must be string", i))
+		assert(ev.to ~= nil, string.format("event[%d].to is required", i))
+		assert(
+			ev.from == nil or type(ev.from) == "string" or type(ev.from) == "table",
+			string.format("event[%d].from must be string or table", i)
+		)
 
 		-- Initialize event entry
 		map[ev.name] = {

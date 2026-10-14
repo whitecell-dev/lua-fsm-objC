@@ -1,24 +1,18 @@
--- CALYX BUNDLE GENERATED: Sun May 10 16:51:00 2026
+-- CALYX BUNDLE GENERATED: Tue Oct 13 19:48:55 2026
 -- PRODUCTION HARDENED: Deterministic ordering + frozen API
 local bundle = { modules = {}, loaded = {} }
 
 local function load_module(name)
-	if bundle.loaded[name] then
-		return bundle.loaded[name]
-	end
-	local module = bundle.modules[name]
-	if not module then
-		error("MODULE_MISSING: " .. name)
-	end
-	local fn, err = loadstring(module, name)
-	if not fn then
-		error("LOAD_FAILURE [" .. name .. "]: " .. err)
-	end
-	bundle.loaded[name] = fn()
-	return bundle.loaded[name]
+    if bundle.loaded[name] then return bundle.loaded[name] end
+    local module = bundle.modules[name]
+    if not module then error('MODULE_MISSING: ' .. name) end
+    local fn, err = loadstring(module, name)
+    if not fn then error('LOAD_FAILURE ['..name..']: ' .. err) end
+    bundle.loaded[name] = fn()
+    return bundle.loaded[name]
 end
 
-bundle.modules["lua-fsm-objC.abi"] = '-- ============================================================================\
+bundle.modules['lua-fsm-objC.abi'] = "-- ============================================================================\
 -- calyx/fsm/abi.lua\
 -- CALYX FSM ABI Constants\
 -- Shared state definitions, error types, and lifecycle markers\
@@ -56,7 +50,7 @@ function ABI.clock:reset(start_tick)\
 end\
 \
 function ABI.clock:real_timestamp(format)\
-	format = format or "%H:%M:%S"\
+	format = format or \"%H:%M:%S\"\
 	return self.real_clock(format)\
 end\
 \
@@ -66,23 +60,23 @@ end\
 \
 ABI.STATES = {\
 	-- Core state markers\
-	NONE = "none",\
-	ASYNC = "async",\
+	NONE = \"none\",\
+	ASYNC = \"async\",\
 \
 	-- Transition phase suffixes\
 	SUFFIXES = {\
-		LEAVE_WAIT = "_LEAVE_WAIT",\
-		ENTER_WAIT = "_ENTER_WAIT",\
+		LEAVE_WAIT = \"_LEAVE_WAIT\",\
+		ENTER_WAIT = \"_ENTER_WAIT\",\
 	},\
 \
 	-- Lifecycle states\
-	INIT = "init",\
-	IDLE = "idle",\
-	RUNNING = "running",\
-	PAUSED = "paused",\
-	STOPPED = "stopped",\
-	ERROR = "error",\
-	FINAL = "final",\
+	INIT = \"init\",\
+	IDLE = \"idle\",\
+	RUNNING = \"running\",\
+	PAUSED = \"paused\",\
+	STOPPED = \"stopped\",\
+	ERROR = \"error\",\
+	FINAL = \"final\",\
 }\
 \
 -- ============================================================================\
@@ -95,105 +89,113 @@ ABI.STATES = {\
 -- (recon 7)\
 ABI.ERRORS = {\
 	-- Transition errors\
-	INVALID_TRANSITION = "invalid_transition",\
-	TRANSITION_IN_PROGRESS = "transition_in_progress",\
-	CANCELLED_BEFORE = "cancelled_before",\
-	CANCELLED_LEAVE = "cancelled_leave",\
-	INVALID_STAGE = "invalid_stage",\
+	INVALID_TRANSITION = \"invalid_transition\",\
+	TRANSITION_IN_PROGRESS = \"transition_in_progress\",\
+	CANCELLED_BEFORE = \"cancelled_before\",\
+	CANCELLED_LEAVE = \"cancelled_leave\",\
+	INVALID_STAGE = \"invalid_stage\",\
 \
 	-- Context errors\
-	NO_CONTEXT = "no_context",\
-	CONTEXT_LOST = "context_lost",\
-	NO_ACTIVE_TRANSITION = "no_active_transition",\
+	NO_CONTEXT = \"no_context\",\
+	CONTEXT_LOST = \"context_lost\",\
+	NO_ACTIVE_TRANSITION = \"no_active_transition\",\
 \
 	-- Mailbox errors\
-	NO_MAILBOX = "no_mailbox",\
-	QUEUE_FULL = "queue_full",\
-	ALREADY_PROCESSING = "already_processing",\
+	NO_MAILBOX = \"no_mailbox\",\
+	QUEUE_FULL = \"queue_full\",\
+	ALREADY_PROCESSING = \"already_processing\",\
 \
 	-- Validation errors\
-	INVALID_EVENT_NAME = "invalid_event_name",\
-	EVENT_COLLISION = "event_collision",\
-	MISSING_EVENT = "missing_event",\
-	MISSING_TARGET = "missing_target",\
+	INVALID_EVENT_NAME = \"invalid_event_name\",\
+	EVENT_COLLISION = \"event_collision\",\
+	MISSING_EVENT = \"missing_event\",\
+	MISSING_TARGET = \"missing_target\",\
 \
 	-- Resource errors\
-	NO_MEMORY = "no_memory",\
-	GC_FAILED = "gc_failed",\
+	NO_MEMORY = \"no_memory\",\
+	GC_FAILED = \"gc_failed\",\
 }\
 \
 -- ============================================================================\
 -- EVENT VALIDATION PATTERNS\
 --\
--- KNOWN: NONE OF THESE ARE ENFORCED ON ANY SHIPPED PATH. They are read only by\
--- Core.validate_event_name / Core.validate_state_name (core/core.lua:116,145),\
--- and nothing calls those -- core/objc.lua and core/mailbox.lua construct FSMs\
--- with no name validation at all. Proof: breakage_suite/test_invalid_fsm_schema.lua\
--- fails 10 of 24 cases, including FSMs built with events that have no name and\
--- no target, and non-string `from` values. (recon 7/D2)\
+-- ENFORCED at FSM construction via Core.validate_fsm_config (core/core.lua),\
+-- which both core/objc.lua and core/mailbox.lua call before building the\
+-- transition map. Proof: breakage_suite/test_invalid_fsm_schema.lua passes\
+-- 24/24, including rejections for missing names/targets and bad `from` types.\
+-- NOTE: state-name patterns are deliberately NOT enforced -- numeric state\
+-- names (e.g. to=456) are allowed and only event names are pattern-checked.\
 -- ============================================================================\
 \
 ABI.PATTERNS = {\
 	-- Event name must start with letter/underscore, then letters/numbers/_.-\
-	EVENT_NAME = "^[%a_][%w_%.%-]*$",\
+	EVENT_NAME = \"^[%a_][%w_%.%-]*$\",\
 \
 	-- State name validation (similar constraints)\
-	STATE_NAME = "^[%a_][%w_%.%-]*$",\
+	STATE_NAME = \"^[%a_][%w_%.%-]*$\",\
 \
 	-- Callback name pattern (onbefore*, onleave*, onenter*, onafter*)\
-	CALLBACK = "^on(before|leave|enter|after)[%a_][%w_%.%-]*$",\
+	CALLBACK = \"^on(before|leave|enter|after)[%a_][%w_%.%-]*$\",\
 }\
 \
 -- ============================================================================\
 -- RESERVED NAMES\
 -- ============================================================================\
 \
--- KNOWN: ABI.RESERVED IS NOT ENFORCED. Its only enforcer is\
--- Core.check_event_collision (core/core.lua:179), which is dead code. An event\
--- named "send"/"resume"/"current" is therefore accepted and silently overwrites\
--- the mailbox FSM\'s own methods (core/mailbox.lua:253 vs the event loop at\
--- :399). breakage_suite/test_unregistered_event.lua measures the consequence as\
--- COLLISION_SEND_FAILED. (recon 7/D1)\
+-- KNOWN: ABI.RESERVED IS ENFORCED at construction (not at runtime).\
+-- Core.validate_fsm_config (core/core.lua) rejects any event whose name is in\
+-- this list, so a reserved name can never reach the dynamic method loop that\
+-- would otherwise overwrite the FSM's own methods (e.g. an event named \"send\"\
+-- overwrote core/mailbox.lua's send()). Runtime sends of undeclared events\
+-- are still rejected per-transition with INVALID_TRANSITION and counted in\
+-- get_diagnostics(). See breakage_suite/test_unregistered_event.lua.\
 ABI.RESERVED = {\
 	-- Core methods\
-	"send",\
-	"resume",\
-	"current",\
-	"_context",\
-	"mailbox",\
-	"process_mailbox",\
-	"clear_mailbox",\
-	"force_gc_cleanup",\
-	"mailbox_stats",\
-	"set_mailbox_size",\
-	"can",\
-	"is",\
-	"asyncState",\
-	"events",\
-	"currentTransitioningEvent",\
-	"_complete",\
-	"name",\
+	\"send\",\
+	\"resume\",\
+	\"current\",\
+	\"_context\",\
+	\"mailbox\",\
+	\"process_mailbox\",\
+	\"clear_mailbox\",\
+	\"force_gc_cleanup\",\
+	\"mailbox_stats\",\
+	\"set_mailbox_size\",\
+	\"can\",\
+	\"is\",\
+	\"asyncState\",\
+	\"events\",\
+	\"currentTransitioningEvent\",\
+	\"_complete\",\
+	\"name\",\
+	-- Read-only accessors and introspection (would be overwritten by the\
+	-- dynamic event-method loop just like the entries above).\
+	\"get_state\",\
+	\"get_name\",\
+	\"get_async_state\",\
+	\"get_diagnostics\",\
+	\"capabilities\",\
 \
 	-- Lifecycle callbacks\
-	"onbefore",\
-	"onleave",\
-	"onenter",\
-	"onafter",\
-	"onstatechange",\
+	\"onbefore\",\
+	\"onleave\",\
+	\"onenter\",\
+	\"onafter\",\
+	\"onstatechange\",\
 \
 	-- Internal\
-	"__index",\
-	"__newindex",\
-	"__metatable",\
+	\"__index\",\
+	\"__newindex\",\
+	\"__metatable\",\
 }\
 \
 -- ============================================================================\
 -- METADATA\
 -- ============================================================================\
 \
-ABI.VERSION = "0.4.0"\
-ABI.NAME = "calyx-fsm"\
-ABI.SPEC = "CALYX Finite State Machine Specification v1"\
+ABI.VERSION = \"0.4.0\"\
+ABI.NAME = \"calyx-fsm\"\
+ABI.SPEC = \"CALYX Finite State Machine Specification v1\"\
 \
 -- ============================================================================\
 -- UTILITY: Safe string conversion for error messages\
@@ -204,7 +206,7 @@ function ABI.safe_tostring(value)\
 	if success then\
 		return result\
 	end\
-	return "[UNPRINTABLE]"\
+	return \"[UNPRINTABLE]\"\
 end\
 \
 -- ============================================================================\
@@ -239,7 +241,7 @@ end\
 function ABI.error_response(error_type, details)\
 	-- Log deprecation warning once\
 	if not ABI._warned_multi_return then\
-		print("[DEPRECATED] error_response uses multi-return. Use error_result instead.")\
+		print(\"[DEPRECATED] error_response uses multi-return. Use error_result instead.\")\
 		ABI._warned_multi_return = true\
 	end\
 \
@@ -251,9 +253,8 @@ function ABI.success_response(data)\
 end\
 \
 return ABI\
-'
-bundle.modules["lua-fsm-objC.stringbuffer"] =
-'-- ============================================================================\
+"
+bundle.modules['lua-fsm-objC.stringbuffer'] = "-- ============================================================================\
 -- lua-fsm-objC.stringbuffer (FIXED - Pure Data Structure)\
 -- ============================================================================\
 -- A passive, deterministic string buffer that composes with Calyx\
@@ -264,7 +265,7 @@ bundle.modules["lua-fsm-objC.stringbuffer"] =
 -- - Bundle-safe (no closure fragility)\
 -- ============================================================================\
 \
-local ABI = require("abi")\
+local ABI = require(\"abi\")\
 \
 -- KNOWN: NO CALLERS ANYWHERE IN THE REPO (recon 7/B31). It ships inside the\
 -- generated bundle and is loadable, but nothing constructs a StringBuffer.\
@@ -280,8 +281,8 @@ function StringBuffer.new(capacity, opts)\
 	opts = opts or {}\
 \
 	-- Validate\
-	if type(capacity) ~= "number" or capacity <= 0 then\
-		error("StringBuffer.new: capacity must be positive number", 2)\
+	if type(capacity) ~= \"number\" or capacity <= 0 then\
+		error(\"StringBuffer.new: capacity must be positive number\", 2)\
 	end\
 \
 	-- Create instance\
@@ -292,7 +293,7 @@ function StringBuffer.new(capacity, opts)\
 		chunks = {}, -- table of string chunks\
 		total_bytes = 0, -- total bytes stored\
 		capacity = capacity, -- max bytes allowed\
-		overflow_policy = opts.overflow_policy or "reject", -- reject, drop_oldest, drop_newest\
+		overflow_policy = opts.overflow_policy or \"reject\", -- reject, drop_oldest, drop_newest\
 	}\
 \
 	-- Freeze the API\
@@ -302,9 +303,9 @@ function StringBuffer.new(capacity, opts)\
 			rawset(t, k, v)\
 			return\
 		end\
-		error(string.format("StringBuffer is frozen: cannot set field \'%s\'", tostring(k)), 2)\
+		error(string.format(\"StringBuffer is frozen: cannot set field '%s'\", tostring(k)), 2)\
 	end\
-	mt.__metatable = { protected = true, type = "CALYX_STRING_BUFFER" }\
+	mt.__metatable = { protected = true, type = \"CALYX_STRING_BUFFER\" }\
 \
 	return self\
 end\
@@ -319,8 +320,8 @@ end\
 function StringBuffer:append(str)\
 	local private = self[PRIVATE]\
 \
-	if type(str) ~= "string" then\
-		return ABI.error_result(ABI.ERRORS.INVALID_ARGUMENT, "append() requires a string", { got = type(str) })\
+	if type(str) ~= \"string\" then\
+		return ABI.error_result(ABI.ERRORS.INVALID_ARGUMENT, \"append() requires a string\", { got = type(str) })\
 	end\
 \
 	local chunk_len = #str\
@@ -335,17 +336,17 @@ function StringBuffer:append(str)\
 \
 	-- Capacity check based on policy\
 	if new_total > private.capacity then\
-		if private.overflow_policy == "reject" then\
+		if private.overflow_policy == \"reject\" then\
 			return ABI.error_result(\
 				ABI.ERRORS.BUFFER_FULL,\
-				string.format("Buffer full: %d/%d bytes", private.total_bytes, private.capacity),\
+				string.format(\"Buffer full: %d/%d bytes\", private.total_bytes, private.capacity),\
 				{\
 					total_bytes = private.total_bytes,\
 					capacity = private.capacity,\
 					requested = chunk_len,\
 				}\
 			)\
-		elseif private.overflow_policy == "drop_oldest" then\
+		elseif private.overflow_policy == \"drop_oldest\" then\
 			-- Drop oldest chunks until we have room\
 			while private.total_bytes + chunk_len > private.capacity and #private.chunks > 0 do\
 				local oldest = table.remove(private.chunks, 1)\
@@ -353,11 +354,11 @@ function StringBuffer:append(str)\
 			end\
 \
 			if private.total_bytes + chunk_len > private.capacity then\
-				return ABI.error_result(ABI.ERRORS.BUFFER_FULL, "Buffer still full after dropping oldest")\
+				return ABI.error_result(ABI.ERRORS.BUFFER_FULL, \"Buffer still full after dropping oldest\")\
 			end\
-		elseif private.overflow_policy == "drop_newest" then\
+		elseif private.overflow_policy == \"drop_newest\" then\
 			-- Silently drop, return error\
-			return ABI.error_result(ABI.ERRORS.BUFFER_FULL, "Buffer full, data dropped", { policy = "drop_newest" })\
+			return ABI.error_result(ABI.ERRORS.BUFFER_FULL, \"Buffer full, data dropped\", { policy = \"drop_newest\" })\
 		end\
 	end\
 \
@@ -406,7 +407,7 @@ function StringBuffer:pop(n)\
 \
 	if private.total_bytes == 0 then\
 		return ABI.success_result({\
-			data = "",\
+			data = \"\",\
 			bytes_read = 0,\
 			remaining = 0,\
 		})\
@@ -452,7 +453,7 @@ function StringBuffer:pop(n)\
 			private.total_bytes = private.total_bytes - needed\
 \
 			-- Put remainder back\
-			if keep ~= "" then\
+			if keep ~= \"\" then\
 				table.insert(remaining_chunks, 1, keep)\
 			end\
 			break\
@@ -510,7 +511,7 @@ function StringBuffer:peek(n)\
 	local private = self[PRIVATE]\
 \
 	if private.total_bytes == 0 then\
-		return ""\
+		return \"\"\
 	end\
 \
 	if not n or n >= private.total_bytes then\
@@ -551,15 +552,15 @@ function StringBuffer:stats()\
 end\
 \
 return StringBuffer\
-'
-bundle.modules["lua-fsm-objC.utils"] = '-- ============================================================================\
+"
+bundle.modules['lua-fsm-objC.utils'] = "-- ============================================================================\
 -- calyx/fsm/utils.lua\
 -- CALYX FSM Shared Utilities\
 -- Formatters, helpers, and diagnostic tools\
 -- Lua 5.1.5 Compatible\
 -- ============================================================================\
 \
-local ABI = require("abi")\
+local ABI = require(\"abi\")\
 \
 local Utils = {}\
 \
@@ -573,20 +574,20 @@ function Utils.format_objc_call(method, params)\
 \
 	if params.data then\
 		for k, v in pairs(params.data) do\
-			table.insert(parts, string.format("data.%s:%s", k, ABI.safe_tostring(v)))\
+			table.insert(parts, string.format(\"data.%s:%s\", k, ABI.safe_tostring(v)))\
 		end\
 	end\
 \
 	if params.options then\
 		for k, v in pairs(params.options) do\
-			table.insert(parts, string.format("options.%s:%s", k, ABI.safe_tostring(v)))\
+			table.insert(parts, string.format(\"options.%s:%s\", k, ABI.safe_tostring(v)))\
 		end\
 	end\
 \
 	if #parts > 0 then\
-		return string.format("%s(%s)", method, table.concat(parts, " "))\
+		return string.format(\"%s(%s)\", method, table.concat(parts, \" \"))\
 	else\
-		return string.format("%s()", method)\
+		return string.format(\"%s()\", method)\
 	end\
 end\
 \
@@ -597,31 +598,31 @@ end\
 function Utils.serialize_table(tbl, indent)\
 	indent = indent or 0\
 	local parts = {}\
-	local prefix = string.rep("  ", indent)\
+	local prefix = string.rep(\"  \", indent)\
 \
-	if type(tbl) ~= "table" then\
+	if type(tbl) ~= \"table\" then\
 		return ABI.safe_tostring(tbl)\
 	end\
 \
-	table.insert(parts, "{")\
+	table.insert(parts, \"{\")\
 \
 	for k, v in pairs(tbl) do\
 		local key_str\
-		if type(k) == "string" then\
-			key_str = string.format("%q", k)\
+		if type(k) == \"string\" then\
+			key_str = string.format(\"%q\", k)\
 		else\
 			key_str = tostring(k)\
 		end\
 \
-		if type(v) == "table" then\
-			table.insert(parts, string.format("%s  %s: %s", prefix, key_str, Utils.serialize_table(v, indent + 1)))\
+		if type(v) == \"table\" then\
+			table.insert(parts, string.format(\"%s  %s: %s\", prefix, key_str, Utils.serialize_table(v, indent + 1)))\
 		else\
-			table.insert(parts, string.format("%s  %s: %s", prefix, key_str, ABI.safe_tostring(v)))\
+			table.insert(parts, string.format(\"%s  %s: %s\", prefix, key_str, ABI.safe_tostring(v)))\
 		end\
 	end\
 \
-	table.insert(parts, prefix .. "}")\
-	return table.concat(parts, "\\n")\
+	table.insert(parts, prefix .. \"}\")\
+	return table.concat(parts, \"\\n\")\
 end\
 \
 -- ============================================================================\
@@ -632,21 +633,21 @@ function Utils.context_diff(before_ctx, after_ctx)\
 	local changes = {}\
 \
 	if before_ctx.from ~= after_ctx.from then\
-		table.insert(changes, string.format("from: %s -> %s", before_ctx.from, after_ctx.from))\
+		table.insert(changes, string.format(\"from: %s -> %s\", before_ctx.from, after_ctx.from))\
 	end\
 \
 	if before_ctx.to ~= after_ctx.to then\
-		table.insert(changes, string.format("to: %s -> %s", before_ctx.to, after_ctx.to))\
+		table.insert(changes, string.format(\"to: %s -> %s\", before_ctx.to, after_ctx.to))\
 	end\
 \
 	if before_ctx.event ~= after_ctx.event then\
-		table.insert(changes, string.format("event: %s -> %s", before_ctx.event, after_ctx.event))\
+		table.insert(changes, string.format(\"event: %s -> %s\", before_ctx.event, after_ctx.event))\
 	end\
 \
 	if #changes > 0 then\
-		return table.concat(changes, ", ")\
+		return table.concat(changes, \", \")\
 	else\
-		return "no changes"\
+		return \"no changes\"\
 	end\
 end\
 \
@@ -660,7 +661,7 @@ function Utils.merge_tables(target, source, overwrite)\
 \
 	for k, v in pairs(source) do\
 		if overwrite or target[k] == nil then\
-			if type(v) == "table" and type(target[k]) == "table" then\
+			if type(v) == \"table\" and type(target[k]) == \"table\" then\
 				target[k] = Utils.merge_tables(target[k], v, overwrite)\
 			else\
 				target[k] = v\
@@ -676,10 +677,10 @@ end\
 -- ============================================================================\
 \
 function Utils.generate_id(prefix, length)\
-	prefix = prefix or "id"\
+	prefix = prefix or \"id\"\
 	length = length or 8\
 \
-	local chars = "0123456789abcdef"\
+	local chars = \"0123456789abcdef\"\
 	local id = {}\
 \
 	math.randomseed(os.time())\
@@ -690,12 +691,12 @@ function Utils.generate_id(prefix, length)\
 		table.insert(id, string.sub(chars, rand, rand))\
 	end\
 \
-	return string.format("%s_%s", prefix, table.concat(id))\
+	return string.format(\"%s_%s\", prefix, table.concat(id))\
 end\
 \
 return Utils\
-'
-bundle.modules["lua-fsm-objC.core"] = '-- ============================================================================\
+"
+bundle.modules['lua-fsm-objC.core'] = "-- ============================================================================\
 -- core/core.lua\
 -- CALYX FSM Core Kernel\
 -- Shared transition logic, validation, and callback dispatch\
@@ -704,41 +705,34 @@ bundle.modules["lua-fsm-objC.core"] = '-- ======================================
 --\
 -- READ THIS BEFORE TRUSTING ANYTHING BELOW\
 --\
--- This module is SPLIT. Only four functions are actually live on the shipped\
--- path (both FSMs in core/objc.lua and core/mailbox.lua call exactly these):\
+-- This module is SPLIT. The following functions are live on the shipped\
+-- path (both FSMs in core/objc.lua and core/mailbox.lua call all of these\
+-- during create()):\
 --\
 --   LIVE  Core.build_transition_map  (:147)  Core.can_transition   (:187)\
 --   LIVE  Core.create_context        (:204)  Core.warn             (:19)\
+--   LIVE  Core.validate_fsm_config       Core.validate_event_name\
+--   LIVE  Core.validate_state_name       Core.check_event_collision\
 --\
--- Everything else below -- lock_metatable, check_event_collision,\
--- validate_event_name, validate_state_name, _dispatch_callback,\
+-- Everything else below -- lock_metatable, _dispatch_callback,\
 -- create_base_fsm, :_transition, :_complete_transition, :can, :is, and the\
 -- ASYNC/NONE/STATES re-exports -- is DEAD CODE. core/objc.lua and\
 -- core/mailbox.lua are closure-based and re-implement transition execution\
 -- and freezing themselves. Nothing calls the versions here.\
 --\
--- Two consequences that used to read as guarantees but are not enforced:\
+-- Construction-time validation IS enforced: Core.validate_fsm_config runs at\
+-- the top of both ObjCFSM.create and MailboxFSM.create and hard-errors on\
+-- missing/invalid event definitions and reserved event names, before the\
+-- transition map is built. State-name patterns are deliberately NOT enforced\
+-- (numeric states are allowed); only event names are pattern-checked.\
+-- Duplicate event names warn and let the last definition win, matching the\
+-- transition-map overwrite behavior.\
 --\
---   1. NO event/state name validation runs on any shipped path. ABI.PATTERNS\
---      (:102-109) is only consulted by Core.validate_event_name, which is\
---      never called. The ONLY live checks are the two asserts in\
---      build_transition_map (:152-153). See breakage_suite/\
---      test_invalid_fsm_schema.lua, which fails 10/24 cases against this.\
---\
---   2. ABI.RESERVED (core/abi.lua:115-146) is NOT enforced. The only enforcer\
---      is Core.check_event_collision, which is dead. So an event literally\
---      named "send" will silently overwrite the mailbox FSM\'s own send()\
---      (defined core/mailbox.lua:240, reassigned in the event loop at :382).\
---\
--- KNOWN: dead validators + unenforced reserved names (recon 7/D1,D2); kept,\
--- not deleted, so the intended design stays readable. Not fixed here because\
--- wiring them in changes FSM construction behavior = a feature change.\
---\
--- The frozen-proxy guards that DO run are core/objc.lua:180-187 and\
--- core/mailbox.lua:405-411 -- not lock_metatable below.\
+-- The frozen-proxy guards that DO run are core/objc.lua and\
+-- core/mailbox.lua -- not lock_metatable below.\
 -- ============================================================================\
 \
-local ABI = require("abi")\
+local ABI = require(\"abi\")\
 \
 local Core = {}\
 Core.__index = Core\
@@ -751,9 +745,9 @@ Core.__index = Core\
 -- ============================================================================\
 \
 function Core.warn(message, category)\
-	category = ABI.safe_tostring(category or "general")\
+	category = ABI.safe_tostring(category or \"general\")\
 	message = ABI.safe_tostring(message)\
-	print(string.format("[WARN %s] %s", string.upper(category), message))\
+	print(string.format(\"[WARN %s] %s\", string.upper(category), message))\
 end\
 \
 -- ============================================================================\
@@ -775,7 +769,7 @@ function Core.lock_metatable(fsm, protection_tag)\
 		mt.__metatable = protection_tag\
 			or {\
 				protected = true,\
-				type = "CALYX_FSM",\
+				type = \"CALYX_FSM\",\
 				version = ABI.VERSION,\
 				immutable = true,\
 			}\
@@ -794,7 +788,7 @@ function Core.lock_metatable(fsm, protection_tag)\
 				rawset(t, k, v)\
 			else\
 				-- FIX: Use consistent error message that test expects\
-				error(string.format("Cannot modify FSM: attempted to set field \'%s\'", tostring(k)), 2)\
+				error(string.format(\"Cannot modify FSM: attempted to set field '%s'\", tostring(k)), 2)\
 			end\
 		end\
 	end\
@@ -803,28 +797,28 @@ end\
 \
 -- ============================================================================\
 -- EVENT NAME VALIDATION\
--- DEAD CODE -- never called. ABI.PATTERNS.EVENT_NAME is therefore\
--- NOT enforced on any shipped path (recon 7/D2).\
+-- LIVE -- called by Core.validate_fsm_config below on every event at\
+-- construction time.\
 -- ============================================================================\
 \
 function Core.validate_event_name(name, strict_mode)\
-	if type(name) ~= "string" or name == "" then\
-		local msg = "Event name must be a non-empty string, got: " .. type(name)\
+	if type(name) ~= \"string\" or name == \"\" then\
+		local msg = \"Event name must be a non-empty string, got: \" .. type(name)\
 		if strict_mode then\
 			error(msg, 2)\
 		else\
-			Core.warn(msg, "validation")\
+			Core.warn(msg, \"validation\")\
 			return false\
 		end\
 	end\
 \
 	if not string.match(name, ABI.PATTERNS.EVENT_NAME) then\
 		local msg =\
-			string.format("Invalid event name format: \'%s\'. Must match pattern: %s", name, ABI.PATTERNS.EVENT_NAME)\
+			string.format(\"Invalid event name format: '%s'. Must match pattern: %s\", name, ABI.PATTERNS.EVENT_NAME)\
 		if strict_mode then\
 			error(msg, 2)\
 		else\
-			Core.warn(msg, "validation")\
+			Core.warn(msg, \"validation\")\
 			return false\
 		end\
 	end\
@@ -834,27 +828,28 @@ end\
 \
 -- ============================================================================\
 -- STATE NAME VALIDATION\
--- DEAD CODE -- only caller is create_base_fsm (:248), itself dead.\
+-- LIVE -- kept for API shape and direct callers. NOTE: validate_fsm_config\
+-- deliberately does NOT pattern-check state names (numeric states allowed).\
 -- ============================================================================\
 \
 function Core.validate_state_name(name, strict_mode)\
-	if type(name) ~= "string" or name == "" then\
-		local msg = "State name must be a non-empty string, got: " .. type(name)\
+	if type(name) ~= \"string\" or name == \"\" then\
+		local msg = \"State name must be a non-empty string, got: \" .. type(name)\
 		if strict_mode then\
 			error(msg, 2)\
 		else\
-			Core.warn(msg, "validation")\
+			Core.warn(msg, \"validation\")\
 			return false\
 		end\
 	end\
 \
 	if not string.match(name, ABI.PATTERNS.STATE_NAME) then\
 		local msg =\
-			string.format("Invalid state name format: \'%s\'. Must match pattern: %s", name, ABI.PATTERNS.STATE_NAME)\
+			string.format(\"Invalid state name format: '%s'. Must match pattern: %s\", name, ABI.PATTERNS.STATE_NAME)\
 		if strict_mode then\
 			error(msg, 2)\
 		else\
-			Core.warn(msg, "validation")\
+			Core.warn(msg, \"validation\")\
 			return false\
 		end\
 	end\
@@ -864,27 +859,88 @@ end\
 \
 -- ============================================================================\
 -- EVENT COLLISION DETECTION\
--- DEAD CODE -- never called.\
---\
--- This is the ONLY place ABI.RESERVED is enforced. Because it is dead,\
--- reserved event names are silently accepted and can clobber FSM methods\
--- (e.g. an event named "send" overwrites core/mailbox.lua:240).\
--- KNOWN: unenforced reserved names (recon 7/D1); not wired because doing so\
--- would make previously-accepted FSM configs start failing = feature change.\
+-- LIVE -- called by Core.validate_fsm_config below for every event name at\
+-- construction time. Reserved names hard-error (fail-early contract); names\
+-- colliding with an existing instance method warn and skip. The instance\
+-- check only applies when a live instance is passed; construction-time calls\
+-- pass nil and rely on the ABI.RESERVED list, which covers all public\
+-- methods on both FSM kinds.\
 -- ============================================================================\
 \
 function Core.check_event_collision(fsm_instance, name)\
 	-- Check reserved names\
 	for i = 1, #ABI.RESERVED do\
 		if name == ABI.RESERVED[i] then\
-			error("Event name \'" .. name .. "\' is reserved and cannot be used", 2)\
+			error(\"Event name '\" .. name .. \"' is reserved and cannot be used\", 2)\
 		end\
 	end\
 \
-	-- Check existing methods\
-	if fsm_instance[name] and type(fsm_instance[name]) == "function" then\
-		Core.warn("Event name \'" .. name .. "\' collides with existing FSM method. Skipping creation.", "collision")\
+	-- Check existing methods (only when called against a live instance)\
+	if fsm_instance and fsm_instance[name] and type(fsm_instance[name]) == \"function\" then\
+		Core.warn(\"Event name '\" .. name .. \"' collides with existing FSM method. Skipping creation.\", \"collision\")\
 		return false\
+	end\
+\
+	return true\
+end\
+\
+-- ============================================================================\
+-- FSM CONFIG VALIDATION (CONSTRUCTION-TIME CONTRACT)\
+-- LIVE -- called at the top of ObjCFSM.create and MailboxFSM.create, before\
+-- the transition map is built. Hard-errors on malformed configs so bad\
+-- machines fail before the FSM begins executing. Deliberately narrow:\
+-- callbacks, mailbox sizes, and state-name formats are NOT checked here\
+-- (see breakage_suite/test_invalid_fsm_schema.lua for the pinned contract).\
+-- ============================================================================\
+\
+function Core.validate_fsm_config(opts)\
+	if type(opts) ~= \"table\" then\
+		error(\"events required (opts must be a table)\", 2)\
+	end\
+\
+	local events = opts.events\
+	if events == nil then\
+		error(\"events required (opts.events missing)\", 2)\
+	end\
+	if type(events) ~= \"table\" then\
+		error(\"events required (opts.events must be a table)\", 2)\
+	end\
+\
+	local seen = {}\
+	for i, ev in ipairs(events) do\
+		if type(ev) ~= \"table\" then\
+			error(string.format(\"event[%d] must be table, got %s\", i, type(ev)), 2)\
+		end\
+\
+		if type(ev.name) ~= \"string\" then\
+			error(string.format(\"event[%d].name must be string, got %s\", i, type(ev.name)), 2)\
+		end\
+\
+		-- Reserved-name collision (fail-early; nil instance = list check only)\
+		Core.check_event_collision(nil, ev.name)\
+\
+		if not string.match(ev.name, ABI.PATTERNS.EVENT_NAME) then\
+			error(\
+				string.format(\"event[%d].name '%s' must match pattern %s\", i, ev.name, ABI.PATTERNS.EVENT_NAME),\
+				2\
+			)\
+		end\
+\
+		if ev.to == nil then\
+			error(string.format(\"event[%d].to is required\", i), 2)\
+		end\
+\
+		if ev.from ~= nil and type(ev.from) ~= \"string\" and type(ev.from) ~= \"table\" then\
+			error(string.format(\"event[%d].from must be string or table, got %s\", i, type(ev.from)), 2)\
+		end\
+\
+		if seen[ev.name] then\
+			Core.warn(\
+				string.format(\"Duplicate event name '%s' overrides previous definition\", ev.name),\
+				\"validation\"\
+			)\
+		end\
+		seen[ev.name] = true\
 	end\
 \
 	return true\
@@ -897,10 +953,15 @@ end\
 function Core.build_transition_map(events)\
 	local map = {}\
 \
-	for _, ev in ipairs(events) do\
-		-- Validate event structure\
-		assert(type(ev.name) == "string", "event.name must be string")\
-		assert(ev.to ~= nil, "event.to is required")\
+	for i, ev in ipairs(events) do\
+		-- Validate event structure (backstop; create() paths run the full\
+		-- Core.validate_fsm_config first, so these are unreachable there).\
+		assert(type(ev.name) == \"string\", string.format(\"event[%d].name must be string\", i))\
+		assert(ev.to ~= nil, string.format(\"event[%d].to is required\", i))\
+		assert(\
+			ev.from == nil or type(ev.from) == \"string\" or type(ev.from) == \"table\",\
+			string.format(\"event[%d].from must be string or table\", i)\
+		)\
 \
 		-- Initialize event entry\
 		map[ev.name] = {\
@@ -909,11 +970,11 @@ function Core.build_transition_map(events)\
 			from_map = {},\
 		}\
 \
-		-- Process \'from\' states\
+		-- Process 'from' states\
 		if ev.from then\
-			local from_states = type(ev.from) == "table" and ev.from or { ev.from }\
+			local from_states = type(ev.from) == \"table\" and ev.from or { ev.from }\
 			for _, st in ipairs(from_states) do\
-				if st == "*" then\
+				if st == \"*\" then\
 					map[ev.name].wildcard = true\
 				else\
 					map[ev.name].from_map[st] = true\
@@ -973,14 +1034,14 @@ function Core._dispatch_callback(fsm, callback_type, phase, context)\
 	-- Construct callback name (e.g., onbeforeStart, onleaveIDLE, onenterRUNNING)\
 	local callback_name\
 \
-	if phase == "before" then\
-		callback_name = "onbefore" .. context.event\
-	elseif phase == "leave" then\
-		callback_name = "onleave" .. context.from\
-	elseif phase == "enter" then\
-		callback_name = "onenter" .. context.to\
-	elseif phase == "after" then\
-		callback_name = "onafter" .. context.event\
+	if phase == \"before\" then\
+		callback_name = \"onbefore\" .. context.event\
+	elseif phase == \"leave\" then\
+		callback_name = \"onleave\" .. context.from\
+	elseif phase == \"enter\" then\
+		callback_name = \"onenter\" .. context.to\
+	elseif phase == \"after\" then\
+		callback_name = \"onafter\" .. context.event\
 	else\
 		callback_name = phase -- Direct callback name\
 	end\
@@ -1010,7 +1071,7 @@ function Core.create_base_fsm(opts)\
 \
 	local fsm = {\
 		-- Identity\
-		name = opts.name or string.format("fsm_%x", math.floor(math.random() * 0xFFFFFF)),\
+		name = opts.name or string.format(\"fsm_%x\", math.floor(math.random() * 0xFFFFFF)),\
 \
 		-- State\
 		current = opts.initial or ABI.STATES.IDLE,\
@@ -1052,7 +1113,7 @@ function Core:_transition(event_name, data, options)\
 	if not can then\
 		return ABI.error_result(\
 			ABI.ERRORS.INVALID_TRANSITION,\
-			string.format("Cannot transition from \'%s\' via \'%s\'", self.current, event_name),\
+			string.format(\"Cannot transition from '%s' via '%s'\", self.current, event_name),\
 			{ current = self.current, event = event_name }\
 		)\
 	end\
@@ -1061,21 +1122,21 @@ function Core:_transition(event_name, data, options)\
 	local ctx = Core.create_context(event_name, self.current, target, data, options)\
 \
 	-- BEFORE callback\
-	local before_result = Core._dispatch_callback(self, "callback", "before", ctx)\
+	local before_result = Core._dispatch_callback(self, \"callback\", \"before\", ctx)\
 	if before_result == false then\
 		return ABI.error_result(\
 			ABI.ERRORS.CANCELLED_BEFORE,\
-			string.format("Transition cancelled in onbefore%s", event_name),\
+			string.format(\"Transition cancelled in onbefore%s\", event_name),\
 			{ event = event_name, context = ctx }\
 		)\
 	end\
 \
 	-- LEAVE callback\
-	local leave_result = Core._dispatch_callback(self, "callback", "leave", ctx)\
+	local leave_result = Core._dispatch_callback(self, \"callback\", \"leave\", ctx)\
 	if leave_result == false then\
 		return ABI.error_result(\
 			ABI.ERRORS.CANCELLED_LEAVE,\
-			string.format("Transition cancelled in onleave%s", ctx.from),\
+			string.format(\"Transition cancelled in onleave%s\", ctx.from),\
 			{ event = event_name, context = ctx }\
 		)\
 	end\
@@ -1100,10 +1161,10 @@ function Core:_complete_transition(ctx)\
 	self.current = ctx.to\
 \
 	-- ENTER callback\
-	Core._dispatch_callback(self, "callback", "enter", ctx)\
+	Core._dispatch_callback(self, \"callback\", \"enter\", ctx)\
 \
 	-- AFTER callback\
-	Core._dispatch_callback(self, "callback", "after", ctx)\
+	Core._dispatch_callback(self, \"callback\", \"after\", ctx)\
 \
 	-- State change notification\
 	if self.onstatechange then\
@@ -1135,7 +1196,7 @@ end\
 -- ============================================================================\
 -- EXPORT CONSTANTS (READ-ONLY)\
 -- DEAD CODE -- calyx_bundle.lua:1969 re-exports ABI.STATES directly, not\
--- these. Kept so `local Core = require("core")` still yields the constants.\
+-- these. Kept so `local Core = require(\"core\")` still yields the constants.\
 -- ============================================================================\
 \
 Core.ASYNC = ABI.STATES.ASYNC\
@@ -1146,16 +1207,15 @@ Core.STATES = ABI.STATES\
 Core._PRIVATE = true\
 \
 return Core\
-'
-bundle.modules["lua-fsm-objC.ringbuffer"] =
-'-- ============================================================================\
+"
+bundle.modules['lua-fsm-objC.ringbuffer'] = "-- ============================================================================\
 -- calyx/fsm/ringbuffer.lua\
 -- CALYX Ring Buffer Mailbox\
 -- O(1) enqueue/dequeue with backpressure signaling\
 -- Lua 5.1.5 Compatible\
 -- ============================================================================\
 \
-local ABI = require("abi")\
+local ABI = require(\"abi\")\
 \
 local RingBuffer = {}\
 RingBuffer.__index = RingBuffer\
@@ -1181,7 +1241,7 @@ function RingBuffer.new(max_size, opts)\
 		total_enqueued = 0,\
 \
 		-- Backpressure policy\
-		overflow_policy = opts.overflow_policy or "drop_newest", -- drop_newest, drop_oldest, reject\
+		overflow_policy = opts.overflow_policy or \"drop_newest\", -- drop_newest, drop_oldest, reject\
 \
 		-- Callbacks\
 		on_backpressure = opts.on_backpressure,\
@@ -1200,23 +1260,23 @@ function RingBuffer:enqueue(message)\
 	if self.count >= self.max_size then\
 		self.dropped_count = self.dropped_count + 1\
 \
-		if self.overflow_policy == "reject" then\
+		if self.overflow_policy == \"reject\" then\
 			return ABI.error_result(\
 				ABI.ERRORS.QUEUE_FULL,\
-				"Queue at capacity",\
+				\"Queue at capacity\",\
 				{ count = self.count, max_size = self.max_size, dropped_total = self.dropped_count }\
 			)\
-		elseif self.overflow_policy == "drop_oldest" then\
+		elseif self.overflow_policy == \"drop_oldest\" then\
 			-- Dequeue oldest to make room\
 			self:dequeue()\
 			if self.debug then\
-				print(string.format("[MAILBOX] Dropped oldest message (policy=drop_oldest)"))\
+				print(string.format(\"[MAILBOX] Dropped oldest message (policy=drop_oldest)\"))\
 			end\
 		else -- drop_newest (default)\
 			if self.debug and self.dropped_count % 100 == 1 then\
 				print(\
 					string.format(\
-						"[MAILBOX] Queue full (%d/%d), dropping newest message #%d",\
+						\"[MAILBOX] Queue full (%d/%d), dropping newest message #%d\",\
 						self.count,\
 						self.max_size,\
 						self.dropped_count\
@@ -1231,8 +1291,8 @@ function RingBuffer:enqueue(message)\
 \
 			return ABI.error_result(\
 				ABI.ERRORS.QUEUE_FULL,\
-				"Queue full, message dropped",\
-				{ policy = "drop_newest", stats = self:get_stats() }\
+				\"Queue full, message dropped\",\
+				{ policy = \"drop_newest\", stats = self:get_stats() }\
 			)\
 		end\
 	end\
@@ -1246,7 +1306,7 @@ function RingBuffer:enqueue(message)\
 	if self.debug then\
 		print(\
 			string.format(\
-				"[MAILBOX] Enqueued: event=%s count=%d/%d",\
+				\"[MAILBOX] Enqueued: event=%s count=%d/%d\",\
 				ABI.safe_tostring(message.event),\
 				self.count,\
 				self.max_size\
@@ -1339,7 +1399,7 @@ function RingBuffer:clear(only_non_retained)\
 		end\
 \
 		if self.debug then\
-			print(string.format("[MAILBOX] Cleared %d non-retained messages (%d retained)", cleared, #kept))\
+			print(string.format(\"[MAILBOX] Cleared %d non-retained messages (%d retained)\", cleared, #kept))\
 		end\
 \
 		return cleared\
@@ -1354,7 +1414,7 @@ function RingBuffer:clear(only_non_retained)\
 		self.dropped_count = 0\
 \
 		if self.debug then\
-			print(string.format("[MAILBOX] Cleared all %d messages", cleared))\
+			print(string.format(\"[MAILBOX] Cleared all %d messages\", cleared))\
 		end\
 \
 		return cleared\
@@ -1374,7 +1434,7 @@ function RingBuffer:set_max_size(new_size)\
 		end\
 \
 		if self.debug then\
-			print(string.format("[MAILBOX] Truncated %d messages to fit new size %d", excess, new_size))\
+			print(string.format(\"[MAILBOX] Truncated %d messages to fit new size %d\", excess, new_size))\
 		end\
 	end\
 \
@@ -1382,26 +1442,30 @@ function RingBuffer:set_max_size(new_size)\
 end\
 \
 return RingBuffer\
-'
-bundle.modules["lua-fsm-objC.objc"] = '-- ============================================================================\
+"
+bundle.modules['lua-fsm-objC.objc'] = "-- ============================================================================\
 -- lua-fsm-objC.objc (FIXED - Proper upvalue ordering)\
 -- ============================================================================\
 -- core/objc.lua (REFACTORED - Closure Pattern)\
-local ABI = require("abi")\
-local Core = require("core")\
-local Utils = require("utils")\
+local ABI = require(\"abi\")\
+local Core = require(\"core\")\
+local Utils = require(\"utils\")\
 \
 local ObjCFSM = {}\
 \
 function ObjCFSM.create(opts)\
 	opts = opts or {}\
 \
+	-- Construction-time contract: fail early on malformed configs and\
+	-- reserved event names, before any state is built.\
+	Core.validate_fsm_config(opts)\
+\
 	-- ============================================================\
 	-- PRIVATE STATE (Hidden in Closure - LLM Cannot Touch)\
 	-- ============================================================\
 	local current_state = opts.initial or ABI.STATES.IDLE\
 	local transition_map = Core.build_transition_map(opts.events or {})\
-	local fsm_name = opts.name or string.format("fsm_%x", math.floor(math.random() * 0xFFFFFF))\
+	local fsm_name = opts.name or string.format(\"fsm_%x\", math.floor(math.random() * 0xFFFFFF))\
 	local debug_mode = opts.debug or false\
 	local _ = opts.strict_mode -- Mark as used to silence warning\
 \
@@ -1413,8 +1477,12 @@ function ObjCFSM.create(opts)\
 		end\
 	end\
 \
+	-- Runtime diagnostics (read-only via get_diagnostics; never fails a\
+	-- transition, only observes it).\
+	local unknown_event_count = 0\
+\
 	-- ============================================================\
-	-- PUBLIC API (Define FIRST so it\'s available as upvalue)\
+	-- PUBLIC API (Define FIRST so it's available as upvalue)\
 	-- ============================================================\
 	local public_api = {}\
 \
@@ -1429,9 +1497,14 @@ function ObjCFSM.create(opts)\
 	local function execute_transition(event_name, data, options)\
 		local can, target = can_transition_internal(event_name)\
 		if not can then\
+			-- checkevents parity: count sends of undeclared event names.\
+			-- Known events from wrong states are NOT counted here.\
+			if transition_map[event_name] == nil then\
+				unknown_event_count = unknown_event_count + 1\
+			end\
 			return ABI.error_result(\
 				ABI.ERRORS.INVALID_TRANSITION,\
-				string.format("Cannot transition from \'%s\' via \'%s\'", current_state, event_name),\
+				string.format(\"Cannot transition from '%s' via '%s'\", current_state, event_name),\
 				{ current = current_state, event = event_name }\
 			)\
 		end\
@@ -1439,24 +1512,24 @@ function ObjCFSM.create(opts)\
 		local ctx = Core.create_context(event_name, current_state, target, data, options)\
 \
 		-- BEFORE callback\
-		if callbacks["onbefore" .. event_name] then\
-			local result = callbacks["onbefore" .. event_name](public_api, ctx)\
+		if callbacks[\"onbefore\" .. event_name] then\
+			local result = callbacks[\"onbefore\" .. event_name](public_api, ctx)\
 			if result == false then\
 				return ABI.error_result(\
 					ABI.ERRORS.CANCELLED_BEFORE,\
-					string.format("Transition cancelled in onbefore%s", event_name),\
+					string.format(\"Transition cancelled in onbefore%s\", event_name),\
 					{ event = event_name, context = ctx }\
 				)\
 			end\
 		end\
 \
 		-- LEAVE callback\
-		if callbacks["onleave" .. ctx.from] then\
-			local result = callbacks["onleave" .. ctx.from](public_api, ctx)\
+		if callbacks[\"onleave\" .. ctx.from] then\
+			local result = callbacks[\"onleave\" .. ctx.from](public_api, ctx)\
 			if result == false then\
 				return ABI.error_result(\
 					ABI.ERRORS.CANCELLED_LEAVE,\
-					string.format("Transition cancelled in onleave%s", ctx.from),\
+					string.format(\"Transition cancelled in onleave%s\", ctx.from),\
 					{ event = event_name, context = ctx }\
 				)\
 			end\
@@ -1468,13 +1541,13 @@ function ObjCFSM.create(opts)\
 		ABI.clock:advance() -- Advance clock on successful transition\
 \
 		-- ENTER callback\
-		if callbacks["onenter" .. ctx.to] then\
-			callbacks["onenter" .. ctx.to](public_api, ctx)\
+		if callbacks[\"onenter\" .. ctx.to] then\
+			callbacks[\"onenter\" .. ctx.to](public_api, ctx)\
 		end\
 \
 		-- AFTER callback\
-		if callbacks["onafter" .. event_name] then\
-			callbacks["onafter" .. event_name](public_api, ctx)\
+		if callbacks[\"onafter\" .. event_name] then\
+			callbacks[\"onafter\" .. event_name](public_api, ctx)\
 		end\
 \
 		-- State change notification\
@@ -1516,11 +1589,17 @@ function ObjCFSM.create(opts)\
 		return fsm_name\
 	end\
 \
+	-- Read-only runtime diagnostics. Returns a fresh table on every call so\
+	-- observers cannot mutate internal counters.\
+	function public_api.get_diagnostics()\
+		return { unknown_events = unknown_event_count }\
+	end\
+\
 	-- Predicate checks\
 	-- FIX: these were declared dot-style (`function public_api.can(event_name)`)\
 	-- while every caller in the repo -- including sqlite_host.lua, redis_host.lua,\
 	-- openresty/lualib/nginx_host.lua, LLM-OS/*, demo.lua and the breakage_suite\
-	-- -- invokes them with COLON syntax. `fsm:can("activate")` therefore passed\
+	-- -- invokes them with COLON syntax. `fsm:can(\"activate\")` therefore passed\
 	-- the FSM as `event_name`, so can_transition looked up transition_map[fsm],\
 	-- found nothing, and returned `false, nil` SILENTLY. Same for is().\
 	-- Declared self-taking here to match (a) the calling convention used\
@@ -1550,7 +1629,7 @@ function ObjCFSM.create(opts)\
 		public_api[event_name] = function(params)\
 			params = params or {}\
 			if debug_mode then\
-				print("[CALL] " .. Utils.format_objc_call(event_name, params))\
+				print(\"[CALL] \" .. Utils.format_objc_call(event_name, params))\
 			end\
 			return execute_transition(event_name, params.data, params.options)\
 		end\
@@ -1563,11 +1642,11 @@ function ObjCFSM.create(opts)\
 	--\
 	-- KNOWN: the frozen API is INCONSISTENT about self. send(event, params) and\
 	-- now can()/is() are self-taking (colon syntax). But get_state(), get_name(),\
-	-- capabilities and mailbox_stats are NOT, so `fsm:get_state()` /\
+	-- get_diagnostics(), capabilities and mailbox_stats are NOT, so `fsm:get_state()` /\
 	-- `fsm:mailbox_stats()` only work because Lua silently ignores the extra\
 	-- argument. That is why the can/is bug above went unnoticed for so long.\
-	-- Safe either way, but do not assume a method "taking an argument" means it\
-	-- read it. (recon 7/B26 and this session\'s can/is fix)\
+	-- Safe either way, but do not assume a method \"taking an argument\" means it\
+	-- read it. (recon 7/B26 and this session's can/is fix)\
 	public_api.ASYNC = ABI.STATES.ASYNC\
 	public_api.NONE = ABI.STATES.NONE\
 	public_api.STATES = ABI.STATES\
@@ -1580,16 +1659,16 @@ function ObjCFSM.create(opts)\
 	local mt = {\
 		__index = public_api,\
 		__newindex = function(t, k, v)\
-			-- Allow setting \'current\' field\
-			if k == "current" then\
+			-- Allow setting 'current' field\
+			if k == \"current\" then\
 				rawset(t, k, v)\
 				return\
 			end\
-			error(string.format("Cannot modify FSM public API: attempted to set \'%s\'", tostring(k)), 2)\
+			error(string.format(\"Cannot modify FSM public API: attempted to set '%s'\", tostring(k)), 2)\
 		end,\
 		__metatable = {\
 			protected = true,\
-			type = "CALYX_OBJC_FSM",\
+			type = \"CALYX_OBJC_FSM\",\
 			version = ABI.VERSION,\
 		},\
 	}\
@@ -1602,20 +1681,23 @@ function ObjCFSM.create(opts)\
 end\
 \
 return ObjCFSM\
-'
-bundle.modules["lua-fsm-objC.mailbox"] =
-'-- ============================================================================\
+"
+bundle.modules['lua-fsm-objC.mailbox'] = "-- ============================================================================\
 -- lua-fsm-objC.mailbox (FIXED - Simplified event registration)\
 -- ============================================================================\
 -- core/mailbox.lua (REFACTORED - Closure Pattern)\
-local ABI = require("abi")\
-local Core = require("core")\
-local RingBuffer = require("ringbuffer")\
-local utils = require("utils")\
+local ABI = require(\"abi\")\
+local Core = require(\"core\")\
+local RingBuffer = require(\"ringbuffer\")\
+local utils = require(\"utils\")\
 local MailboxFSM = {}\
 \
 function MailboxFSM.create(opts)\
 	opts = opts or {}\
+\
+	-- Construction-time contract: fail early on malformed configs and\
+	-- reserved event names, before any state is built.\
+	Core.validate_fsm_config(opts)\
 \
 	-- ============================================================\
 	-- PRIVATE STATE (Closure-Protected)\
@@ -1634,11 +1716,11 @@ function MailboxFSM.create(opts)\
 	math.random()\
 	math.random()\
 	math.random()\
-	local fsm_name = opts.name or string.format("fsm_%x", math.floor(math.random() * 16777215))\
+	local fsm_name = opts.name or string.format(\"fsm_%x\", math.floor(math.random() * 16777215))\
 	local debug_mode = opts.debug or false\
 \
 	local mailbox = RingBuffer.new(opts.mailbox_size or 1000, {\
-		overflow_policy = opts.overflow_policy or "drop_newest",\
+		overflow_policy = opts.overflow_policy or \"drop_newest\",\
 		debug = debug_mode,\
 		on_backpressure = opts.on_backpressure,\
 	})\
@@ -1649,6 +1731,10 @@ function MailboxFSM.create(opts)\
 			callbacks[k] = v\
 		end\
 	end\
+\
+	-- Runtime diagnostics (read-only via get_diagnostics; never fails a\
+	-- transition, only observes it).\
+	local unknown_event_count = 0\
 \
 	-- ============================================================\
 	-- PUBLIC API (Forward Declaration)\
@@ -1665,29 +1751,29 @@ function MailboxFSM.create(opts)\
 \
 	local function safe_tostring(value)\
 		if value == nil then\
-			return "nil"\
+			return \"nil\"\
 		end\
 		local t = type(value)\
-		if t == "string" then\
+		if t == \"string\" then\
 			return value\
 		end\
-		if t == "table" then\
-			return "table"\
+		if t == \"table\" then\
+			return \"table\"\
 		end\
 		return tostring(value)\
 	end\
 \
 	local function complete_async()\
 		if not transition_context then\
-			return ABI.error_result(ABI.ERRORS.CONTEXT_LOST, "Transition context lost")\
+			return ABI.error_result(ABI.ERRORS.CONTEXT_LOST, \"Transition context lost\")\
 		end\
 \
 		local ctx = transition_context\
 \
 		if async_state and async_state ~= ABI.STATES.NONE then\
-			local suffix = string.match(async_state, "_(.+)$")\
+			local suffix = string.match(async_state, \"_(.+)$\")\
 \
-			if suffix == "LEAVE_WAIT" then\
+			if suffix == \"LEAVE_WAIT\" then\
 				current_state = ctx.to\
 				public_api.current = current_state\
 				public_api.asyncState = async_state\
@@ -1696,17 +1782,17 @@ function MailboxFSM.create(opts)\
 				async_state = ctx.event .. ABI.STATES.SUFFIXES.ENTER_WAIT\
 				public_api.asyncState = async_state\
 \
-				if callbacks["onenter" .. ctx.to] then\
-					local result = callbacks["onenter" .. ctx.to](public_api, ctx)\
+				if callbacks[\"onenter\" .. ctx.to] then\
+					local result = callbacks[\"onenter\" .. ctx.to](public_api, ctx)\
 					if result == ABI.STATES.ASYNC then\
 						return ABI.success_result({ async = true, stage = async_state })\
 					end\
 				end\
 \
 				return complete_async()\
-			elseif suffix == "ENTER_WAIT" then\
-				if callbacks["onafter" .. ctx.event] then\
-					callbacks["onafter" .. ctx.event](public_api, ctx)\
+			elseif suffix == \"ENTER_WAIT\" then\
+				if callbacks[\"onafter\" .. ctx.event] then\
+					callbacks[\"onafter\" .. ctx.event](public_api, ctx)\
 				end\
 \
 				if callbacks.onstatechange then\
@@ -1723,28 +1809,28 @@ function MailboxFSM.create(opts)\
 			end\
 		end\
 \
-		return ABI.error_result(ABI.ERRORS.INVALID_STAGE, "Invalid async stage", { stage = async_state })\
+		return ABI.error_result(ABI.ERRORS.INVALID_STAGE, \"Invalid async stage\", { stage = async_state })\
 	end\
 \
 	local function execute_transition(event_name, data, options)\
 		-- Validate event name\
-		if type(event_name) ~= "string" then\
+		if type(event_name) ~= \"string\" then\
 			return ABI.error_result(\
 				ABI.ERRORS.INVALID_EVENT_NAME,\
-				string.format("Event name must be string, got %s", type(event_name))\
+				string.format(\"Event name must be string, got %s\", type(event_name))\
 			)\
 		end\
 \
 		-- Transition collision check\
-		-- KNOWN: this is a SUBSTRING test, not equality. An event named "step"\
-		-- matches an in-flight "step1_LEAVE_WAIT" and resumes the wrong\
+		-- KNOWN: this is a SUBSTRING test, not equality. An event named \"step\"\
+		-- matches an in-flight \"step1_LEAVE_WAIT\" and resumes the wrong\
 		-- transition. Making it structural changes matching semantics = a\
 		-- feature change, so left as-is. (recon 7/B27)\
 		if async_state ~= ABI.STATES.NONE and not string.find(async_state, event_name, 1, true) then\
 			return ABI.error_result(\
 				ABI.ERRORS.TRANSITION_IN_PROGRESS,\
 				string.format(\
-					"Transition \'%s\' in progress, cannot start \'%s\'",\
+					\"Transition '%s' in progress, cannot start '%s'\",\
 					safe_tostring(current_event),\
 					safe_tostring(event_name)\
 				),\
@@ -1760,10 +1846,15 @@ function MailboxFSM.create(opts)\
 		-- Start new transition\
 		local can, target = can_transition_internal(event_name)\
 		if not can then\
+			-- checkevents parity: count sends of undeclared event names.\
+			-- Known events from wrong states are NOT counted here.\
+			if transition_map[event_name] == nil then\
+				unknown_event_count = unknown_event_count + 1\
+			end\
 			return ABI.error_result(\
 				ABI.ERRORS.INVALID_TRANSITION,\
 				string.format(\
-					"Cannot transition from \'%s\' via \'%s\'",\
+					\"Cannot transition from '%s' via '%s'\",\
 					safe_tostring(current_state),\
 					safe_tostring(event_name)\
 				),\
@@ -1774,17 +1865,17 @@ function MailboxFSM.create(opts)\
 		local ctx = Core.create_context(event_name, current_state, target, data, options)\
 \
 		-- BEFORE callback\
-		if callbacks["onbefore" .. event_name] then\
-			if callbacks["onbefore" .. event_name](public_api, ctx) == false then\
-				return ABI.error_result(ABI.ERRORS.CANCELLED_BEFORE, "Transition cancelled", { event = event_name })\
+		if callbacks[\"onbefore\" .. event_name] then\
+			if callbacks[\"onbefore\" .. event_name](public_api, ctx) == false then\
+				return ABI.error_result(ABI.ERRORS.CANCELLED_BEFORE, \"Transition cancelled\", { event = event_name })\
 			end\
 		end\
 \
 		-- LEAVE callback\
-		if callbacks["onleave" .. ctx.from] then\
-			local result = callbacks["onleave" .. ctx.from](public_api, ctx)\
+		if callbacks[\"onleave\" .. ctx.from] then\
+			local result = callbacks[\"onleave\" .. ctx.from](public_api, ctx)\
 			if result == false then\
-				return ABI.error_result(ABI.ERRORS.CANCELLED_LEAVE, "Transition cancelled", { from = ctx.from })\
+				return ABI.error_result(ABI.ERRORS.CANCELLED_LEAVE, \"Transition cancelled\", { from = ctx.from })\
 			end\
 \
 			if result == ABI.STATES.ASYNC then\
@@ -1802,11 +1893,11 @@ function MailboxFSM.create(opts)\
 		public_api.current = current_state\
 		ABI.clock:advance()\
 \
-		if callbacks["onenter" .. ctx.to] then\
-			callbacks["onenter" .. ctx.to](public_api, ctx)\
+		if callbacks[\"onenter\" .. ctx.to] then\
+			callbacks[\"onenter\" .. ctx.to](public_api, ctx)\
 		end\
-		if callbacks["onafter" .. event_name] then\
-			callbacks["onafter" .. event_name](public_api, ctx)\
+		if callbacks[\"onafter\" .. event_name] then\
+			callbacks[\"onafter\" .. event_name](public_api, ctx)\
 		end\
 		if callbacks.onstatechange then\
 			callbacks.onstatechange(public_api, ctx)\
@@ -1832,6 +1923,12 @@ function MailboxFSM.create(opts)\
 	function public_api.get_name()\
 		return fsm_name\
 	end\
+	-- Read-only runtime diagnostics. Returns a fresh table on every call so\
+	-- observers cannot mutate internal counters.\
+	function public_api.get_diagnostics()\
+		return { unknown_events = unknown_event_count }\
+	end\
+\
 	-- FIX: see the identical note in core/objc.lua:135. These were declared\
 	-- dot-style but invoked with colon syntax everywhere, so `fsm:can(ev)` /\
 	-- `fsm:is(state)` silently returned false (the FSM was passed as the\
@@ -1848,7 +1945,7 @@ function MailboxFSM.create(opts)\
 	-- Resume async transition\
 	function public_api.resume()\
 		if async_state == ABI.STATES.NONE then\
-			return ABI.error_result(ABI.ERRORS.NO_ACTIVE_TRANSITION, "No active transition")\
+			return ABI.error_result(ABI.ERRORS.NO_ACTIVE_TRANSITION, \"No active transition\")\
 		end\
 		return complete_async()\
 	end\
@@ -1863,46 +1960,46 @@ function MailboxFSM.create(opts)\
 		local retain = false\
 		local no_retry = false\
 \
-		-- Pattern 1: send("event", {data=..., options=...})\
-		if type(event) == "string" and type(params) == "table" then\
+		-- Pattern 1: send(\"event\", {data=..., options=...})\
+		if type(event) == \"string\" and type(params) == \"table\" then\
 			event_name = event\
 			event_data = params.data or {}\
 			event_options = params.options or {}\
 			retain = params.retain or false\
 			no_retry = params.no_retry or false\
 \
-		-- Pattern 2: send({event="event", data=..., options=...})\
-		elseif type(event) == "table" and event.event then\
+		-- Pattern 2: send({event=\"event\", data=..., options=...})\
+		elseif type(event) == \"table\" and event.event then\
 			event_name = event.event\
 			event_data = event.data or {}\
 			event_options = event.options or {}\
 			retain = event.retain or false\
 			no_retry = event.no_retry or false\
 \
-		-- Pattern 3: send({data=...}, "event")  -- Test suite uses this\
-		elseif type(event) == "table" and type(params) == "string" then\
+		-- Pattern 3: send({data=...}, \"event\")  -- Test suite uses this\
+		elseif type(event) == \"table\" and type(params) == \"string\" then\
 			event_name = params\
 			event_data = event.data or {}\
 			event_options = event.options or {}\
 			retain = event.retain or false\
 			no_retry = event.no_retry or false\
 \
-		-- Pattern 4: send("event")\
-		elseif type(event) == "string" then\
+		-- Pattern 4: send(\"event\")\
+		elseif type(event) == \"string\" then\
 			event_name = event\
 \
-		-- Pattern 5: send({event="event"})\
-		elseif type(event) == "table" and event.event then\
+		-- Pattern 5: send({event=\"event\"})\
+		elseif type(event) == \"table\" and event.event then\
 			event_name = event.event\
 		else\
 			return ABI.error_result(\
 				ABI.ERRORS.INVALID_EVENT_NAME,\
-				"send() could not determine event name from arguments"\
+				\"send() could not determine event name from arguments\"\
 			)\
 		end\
 \
 		-- Ensure event_name is a string\
-		if type(event_name) ~= "string" then\
+		if type(event_name) ~= \"string\" then\
 			event_name = tostring(event_name)\
 		end\
 \
@@ -1923,7 +2020,7 @@ function MailboxFSM.create(opts)\
 	-- Process mailbox\
 	function public_api.process_mailbox()\
 		if mailbox.processing then\
-			return ABI.error_result(ABI.ERRORS.ALREADY_PROCESSING, "Mailbox is being processed")\
+			return ABI.error_result(ABI.ERRORS.ALREADY_PROCESSING, \"Mailbox is being processed\")\
 		end\
 \
 		mailbox.processing = true\
@@ -1937,7 +2034,7 @@ function MailboxFSM.create(opts)\
 				break\
 			end\
 \
-			if not msg.event or type(msg.event) ~= "string" then\
+			if not msg.event or type(msg.event) ~= \"string\" then\
 				failed = failed + 1\
 				mailbox.total_failed = (mailbox.total_failed or 0) + 1\
 			else\
@@ -2005,7 +2102,7 @@ function MailboxFSM.create(opts)\
 		public_api[event_name] = function(params)\
 			params = params or {}\
 			if debug_mode then\
-				print("[CALL] " .. utils.format_objc_call(event_name, params))\
+				print(\"[CALL] \" .. utils.format_objc_call(event_name, params))\
 			end\
 			return execute_transition(event_name, params.data, params.options)\
 		end\
@@ -2016,10 +2113,11 @@ function MailboxFSM.create(opts)\
 \
 	-- Export constants\
 	-- KNOWN: same self-inconsistency as core/objc.lua. get_state(),\
-	-- get_async_state(), get_name(), mailbox_stats(), clear_mailbox(),\
-	-- set_mailbox_size(), process_mailbox() and resume() take NO self, so their\
-	-- colon-style calls work only because Lua ignores the extra argument.\
-	-- send() and (now) can()/is() are self-taking. (recon 7/B26)\
+	-- get_async_state(), get_name(), get_diagnostics(), mailbox_stats(),\
+	-- clear_mailbox(), set_mailbox_size(), process_mailbox() and resume() take\
+	-- NO self, so their colon-style calls work only because Lua ignores the\
+	-- extra argument. send() and (now) can()/is() are self-taking.\
+	-- (recon 7/B26)\
 	public_api.ASYNC = ABI.STATES.ASYNC\
 	public_api.NONE = ABI.STATES.NONE\
 	public_api.STATES = ABI.STATES\
@@ -2031,15 +2129,15 @@ function MailboxFSM.create(opts)\
 	local mt = {\
 		__index = public_api,\
 		__newindex = function(t, k, v)\
-			if k == "current" or k == "asyncState" then\
+			if k == \"current\" or k == \"asyncState\" then\
 				rawset(t, k, v)\
 				return\
 			end\
-			error(string.format("Cannot modify FSM: attempted to set field \'%s\'", tostring(k)), 2)\
+			error(string.format(\"Cannot modify FSM: attempted to set field '%s'\", tostring(k)), 2)\
 		end,\
 		__metatable = {\
 			protected = true,\
-			type = "CALYX_MAILBOX_FSM",\
+			type = \"CALYX_MAILBOX_FSM\",\
 			version = ABI.VERSION,\
 		},\
 	}\
@@ -2052,75 +2150,60 @@ function MailboxFSM.create(opts)\
 end\
 \
 return MailboxFSM\
-'
+"
 
 -- Survival Lab Registration (Topologically Sorted)
-package.preload["lua-fsm-objC.abi"] = function()
-	return load_module("lua-fsm-objC.abi")
-end
-package.preload["abi"] = package.preload["lua-fsm-objC.abi"]
-package.preload["lua-fsm-objC.stringbuffer"] = function()
-	return load_module("lua-fsm-objC.stringbuffer")
-end
-package.preload["stringbuffer"] = package.preload["lua-fsm-objC.stringbuffer"]
-package.preload["lua-fsm-objC.utils"] = function()
-	return load_module("lua-fsm-objC.utils")
-end
-package.preload["utils"] = package.preload["lua-fsm-objC.utils"]
-package.preload["lua-fsm-objC.core"] = function()
-	return load_module("lua-fsm-objC.core")
-end
-package.preload["core"] = package.preload["lua-fsm-objC.core"]
-package.preload["lua-fsm-objC.ringbuffer"] = function()
-	return load_module("lua-fsm-objC.ringbuffer")
-end
-package.preload["ringbuffer"] = package.preload["lua-fsm-objC.ringbuffer"]
-package.preload["lua-fsm-objC.objc"] = function()
-	return load_module("lua-fsm-objC.objc")
-end
-package.preload["objc"] = package.preload["lua-fsm-objC.objc"]
-package.preload["lua-fsm-objC.mailbox"] = function()
-	return load_module("lua-fsm-objC.mailbox")
-end
-package.preload["mailbox"] = package.preload["lua-fsm-objC.mailbox"]
+package.preload['lua-fsm-objC.abi'] = function() return load_module('lua-fsm-objC.abi') end
+package.preload['abi'] = package.preload['lua-fsm-objC.abi']
+package.preload['lua-fsm-objC.stringbuffer'] = function() return load_module('lua-fsm-objC.stringbuffer') end
+package.preload['stringbuffer'] = package.preload['lua-fsm-objC.stringbuffer']
+package.preload['lua-fsm-objC.utils'] = function() return load_module('lua-fsm-objC.utils') end
+package.preload['utils'] = package.preload['lua-fsm-objC.utils']
+package.preload['lua-fsm-objC.core'] = function() return load_module('lua-fsm-objC.core') end
+package.preload['core'] = package.preload['lua-fsm-objC.core']
+package.preload['lua-fsm-objC.ringbuffer'] = function() return load_module('lua-fsm-objC.ringbuffer') end
+package.preload['ringbuffer'] = package.preload['lua-fsm-objC.ringbuffer']
+package.preload['lua-fsm-objC.objc'] = function() return load_module('lua-fsm-objC.objc') end
+package.preload['objc'] = package.preload['lua-fsm-objC.objc']
+package.preload['lua-fsm-objC.mailbox'] = function() return load_module('lua-fsm-objC.mailbox') end
+package.preload['mailbox'] = package.preload['lua-fsm-objC.mailbox']
 
 -- Short aliases for core modules
-package.preload["abi"] = package.preload["lua-fsm-objC.abi"]
-package.preload["core"] = package.preload["lua-fsm-objC.core"]
-package.preload["mailbox"] = package.preload["lua-fsm-objC.mailbox"]
-package.preload["objc"] = package.preload["lua-fsm-objC.objc"]
-package.preload["utils"] = package.preload["lua-fsm-objC.utils"]
-package.preload["ringbuffer"] = package.preload["lua-fsm-objC.ringbuffer"]
+package.preload['abi'] = package.preload['lua-fsm-objC.abi']
+package.preload['core'] = package.preload['lua-fsm-objC.core']
+package.preload['mailbox'] = package.preload['lua-fsm-objC.mailbox']
+package.preload['objc'] = package.preload['lua-fsm-objC.objc']
+package.preload['utils'] = package.preload['lua-fsm-objC.utils']
+package.preload['ringbuffer'] = package.preload['lua-fsm-objC.ringbuffer']
 
 -- ===== CALYX FSM UNIFIED API =====
 
-local lua_fsm_abi = require("lua-fsm-objC.abi")
-local lua_fsm_core = require("lua-fsm-objC.core")
-local lua_fsm_mailbox = require("lua-fsm-objC.mailbox")
-local lua_fsm_objc = require("lua-fsm-objC.objc")
-local lua_fsm_utils = require("lua-fsm-objC.utils")
+local lua_fsm_abi = require('lua-fsm-objC.abi')
+local lua_fsm_core = require('lua-fsm-objC.core')
+local lua_fsm_mailbox = require('lua-fsm-objC.mailbox')
+local lua_fsm_objc = require('lua-fsm-objC.objc')
+local lua_fsm_utils = require('lua-fsm-objC.utils')
 
 return {
-	-- Creation APIs
-	create_object_fsm = lua_fsm_objc.create,
-	create_mailbox_fsm = lua_fsm_mailbox.create,
+    -- Creation APIs
+    create_object_fsm = lua_fsm_objc.create,
+    create_mailbox_fsm = lua_fsm_mailbox.create,
 
-	-- Shared constants
-	ASYNC = lua_fsm_abi.STATES.ASYNC,
-	NONE = lua_fsm_abi.STATES.NONE,
-	STATES = lua_fsm_abi.STATES,
-	ERRORS = lua_fsm_abi.ERRORS,
+    -- Shared constants
+    ASYNC = lua_fsm_abi.STATES.ASYNC,
+    NONE = lua_fsm_abi.STATES.NONE,
+    STATES = lua_fsm_abi.STATES,
+    ERRORS = lua_fsm_abi.ERRORS,
 
-	-- Version info
-	VERSION = lua_fsm_abi.VERSION,
-	NAME = lua_fsm_abi.NAME,
-	SPEC = lua_fsm_abi.SPEC,
+    -- Version info
+    VERSION = lua_fsm_abi.VERSION,
+    NAME = lua_fsm_abi.NAME,
+    SPEC = lua_fsm_abi.SPEC,
 
-	-- Diagnostics (debug mode only)
-	diagnostics = {
-		format_objc_call = lua_fsm_utils.format_objc_call,
-		serialize = lua_fsm_utils.serialize_table,
-		clock = lua_fsm_abi.clock,
-	},
+    -- Diagnostics (debug mode only)
+    diagnostics = {
+        format_objc_call = lua_fsm_utils.format_objc_call,
+        serialize = lua_fsm_utils.serialize_table,
+        clock = lua_fsm_abi.clock,
+    },
 }
-

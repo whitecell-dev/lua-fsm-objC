@@ -21,10 +21,11 @@ gaps that are **not** fixed are marked `KNOWN:` at the exact source line, and in
    byte-for-byte identical, and that invariant is meant to hold. Regenerate with
    `lua bundler.lua` from the repo root, then re-verify.
 
-3. **`core/core.lua` is mostly dead code.** Only `build_transition_map`, `can_transition`,
-   `create_context` and `warn` are live. In particular `lock_metatable`,
-   `check_event_collision`, `validate_event_name` and `validate_state_name` are **never
-   called**, which is why reserved event names and event-name formats are *not* enforced.
+3. **`core/core.lua` is partly dead code.** Only `build_transition_map`, `can_transition`,
+   `create_context`, `warn`, `validate_fsm_config`, `validate_event_name`,
+   `validate_state_name` and `check_event_collision` are live. Still never
+   called: `lock_metatable`, `_dispatch_callback`, `create_base_fsm`,
+   `:_transition`, `:_complete_transition`, `:can`, `:is`.
    See the banner at the top of that file.
 
 ---
@@ -130,8 +131,8 @@ These are **real, measured** gaps — not aspirations. Each has a reproducing te
 
 | Breakage | Status | Evidence |
 | --- | --- | --- |
-| Reserved event names not enforced (an event named `send` overwrites `send()`) | **REPRODUCED** | `core/abi.lua:137-168` vs dead `core/core.lua:179`; measured as `COLLISION_SEND_FAILED` by `breakage_suite/test_unregistered_event.lua` |
-| No event / state name validation on any shipped path | **REPRODUCED** | `ABI.PATTERNS` (`core/abi.lua:116-125`) is read only by dead validators; `breakage_suite/test_invalid_fsm_schema.lua` fails 10 of 24 cases |
+| Reserved event names rejected at construction (an event named `send` is an error, not a silent overwrite) | **ENFORCED** | `core/core.lua` `validate_fsm_config` vs `core/abi.lua` `RESERVED`; measured by `breakage_suite/test_unregistered_event.lua` |
+| Event / state config validated at FSM construction (missing names/targets, bad `from` types, unknown-shape configs fail before executing) | **ENFORCED** | `core/core.lua` `validate_fsm_config`; `breakage_suite/test_invalid_fsm_schema.lua` passes 24/24 |
 | Circular message loops / concurrent reentrancy | **UNTESTED** | no test; `breakage_suite/patterns/` and `test_concurrent_dispatch.lua` were removed as zero-byte placeholders |
 | `fsm:can()` / `fsm:is()` returned `false` silently | **FIXED 2026-10-07** | declared dot-style, called colon-style everywhere; `core/objc.lua:144` now self-taking |
 | Async resume matched by substring, so event `step` resumes an in-flight `step1_LEAVE_WAIT` | **KNOWN, not fixed** | `core/mailbox.lua:137` |
@@ -233,8 +234,8 @@ lua-fsm-objC/
 
 ## 🚧 Current Risks (Ranked by Likelihood)
 
-1. ❗ Reserved event names silently clobber FSM methods
-2. ❗ No input validation at FSM construction — malformed configs load and then misbehave
+1. ✅ Reserved event names rejected at construction (was: silently clobbered FSM methods)
+2. ✅ Malformed FSM configs fail at construction (was: loaded and then misbehaved)
 3. ❗ `can()`/`is()`-style silent-wrong-answer bugs (one found and fixed 2026-10-07; the class remains)
 4. ❗ Strict mode gives a false sense of isolation — existing globals are still writable
 5. ❓ Effect execution failures are logged and ignored, with no rollback

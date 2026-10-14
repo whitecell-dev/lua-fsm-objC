@@ -35,7 +35,9 @@ local basic_fsm = CALYX.create({
 	events = {
 		{ name = "start", from = "idle", to = "running" },
 		{ name = "pause", from = "running", to = "paused" },
-		{ name = "resume", from = "paused", to = "running" },
+		-- NOTE: "resume" is a reserved FSM method name (mailbox resume()) and is
+		-- rejected at construction; "continue" is the non-colliding equivalent.
+		{ name = "continue", from = "paused", to = "running" },
 		{ name = "stop", from = { "running", "paused" }, to = "idle" },
 	},
 	callbacks = {
